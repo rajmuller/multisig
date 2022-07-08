@@ -27,12 +27,52 @@ pub mod multisig {
         multisig.owner_set_seqno = 0;
         Ok(())
     }
+
+    // propose a transaction for the other owners
+    pub fn propose_transaction(
+        ctx: Context<ProposeTransaction>,
+        pid: Pubkey,
+        accs: Vec<TransactionAccount>,
+        data: Vec<u8>,
+    ) -> Result<()> {
+        let owner_index = ctx
+            .accounts
+            .multisig
+            .owners
+            .iter()
+            .position(|a| a == ctx.accounts.proposer.key)
+            .ok_or(MultiSigError::InvalidOwner)?;
+
+        let mut signers = Vec::new();
+        signers.resize(ctx.accounts.multisig.owners.len(), false);
+        signers[owner_index] = true;
+
+        let tx = &mut ctx.accounts.transaction;
+        tx.program_id = pid;
+        tx.accounts = accs;
+        tx.data = data;
+        tx.signers = signers;
+        tx.multisig = ctx.accounts.multisig.key();
+        tx.did_execute = false;
+        tx.owner_set_seqno = ctx.accounts.multisig.owner_set_seqno;
+
+        Ok(())
+    }
 }
 
 #[derive(Accounts)]
 pub struct InitWallet<'info> {
     #[account(zero, signer)]
-    multisig: Account<'info, MultiSig>,
+    multisig: Box<Account<'info, MultiSig>>,
+}
+
+#[derive(Accounts)]
+pub struct ProposeTransaction<'info> {
+    multisig: Box<Account<'info, MultiSig>>,
+    #[account(zero, signer)]
+    transaction: Box<Account<'info, Transaction>>,
+    // One of the owners. Checked in the handler.
+    proposer: Signer<'info>,
 }
 
 #[account]
@@ -41,6 +81,50 @@ pub struct MultiSig {
     pub threshold: u64,
     pub nonce: u8,
     pub owner_set_seqno: u32,
+}
+
+#[account]
+pub struct Transaction {
+    // The multisig account this transaction belongs to.
+    pub multisig: Pubkey,
+    // Target program to execute against.
+    pub program_id: Pubkey,
+    // Accounts requried for the transaction.
+    pub accounts: Vec<TransactionAccount>,
+    // Instruction data for the transaction.
+    pub data: Vec<u8>,
+    // signers[index] is true iff multisig.owners[index] signed the transaction.
+    pub signers: Vec<bool>,
+    // Boolean ensuring one time execution.
+    pub did_execute: bool,
+    // Owner set sequence number.
+    pub owner_set_seqno: u32,
+}
+
+#[derive(AnchorSerialize, AnchorDeserialize, Clone)]
+pub struct TransactionAccount {
+    pub pubkey: Pubkey,
+    pub is_signer: bool,
+    pub is_writable: bool,
+}
+
+impl From<&TransactionAccount> for AccountMeta {
+    fn from(account: &TransactionAccount) -> AccountMeta {
+        match account.is_writable {
+            false => AccountMeta::new_readonly(account.pubkey, account.is_signer),
+            true => AccountMeta::new(account.pubkey, account.is_signer),
+        }
+    }
+}
+
+impl From<&AccountMeta> for TransactionAccount {
+    fn from(account_meta: &AccountMeta) -> TransactionAccount {
+        TransactionAccount {
+            pubkey: account_meta.pubkey,
+            is_signer: account_meta.is_signer,
+            is_writable: account_meta.is_writable,
+        }
+    }
 }
 
 fn assert_unique_owners(owners: &[Pubkey]) -> Result<()> {
