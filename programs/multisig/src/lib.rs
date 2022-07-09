@@ -1,9 +1,13 @@
 use anchor_lang::prelude::*;
 
-declare_id!("8XHSyugWk2uYagCREiD2fSRkgGcTPYvwipXgd9c7em2i");
+// linux
+// declare_id!("8XHSyugWk2uYagCREiD2fSRkgGcTPYvwipXgd9c7em2i");
+//mac
+declare_id!("Fdjkm4r6FHzt3XmwrD26aLYPG74eJuxnmRby6zxNYfiQ");
 
 #[program]
 pub mod multisig {
+
     use super::*;
 
     // init new multisig wallet with set of owners and threshold
@@ -24,16 +28,16 @@ pub mod multisig {
         multisig.owners = owners;
         multisig.threshold = threshold;
         multisig.nonce = nonce;
-        multisig.owner_set_seqno = 0;
+        multisig.proposal_counter = 0;
         Ok(())
     }
 
-    // propose a transaction for the other owners
+    // propose a transaction for the other owners to approve
     pub fn propose_transaction(
         ctx: Context<ProposeTransaction>,
         pid: Pubkey,
-        accs: Vec<TransactionAccount>,
-        data: Vec<u8>,
+        to: Pubkey,
+        amount: u64,
     ) -> Result<()> {
         let owner_index = ctx
             .accounts
@@ -43,18 +47,21 @@ pub mod multisig {
             .position(|a| a == ctx.accounts.proposer.key)
             .ok_or(MultiSigError::InvalidOwner)?;
 
-        let mut signers = Vec::new();
-        signers.resize(ctx.accounts.multisig.owners.len(), false);
-        signers[owner_index] = true;
+        let mut approvers = Vec::new();
+        approvers.resize(ctx.accounts.multisig.owners.len(), false);
+        approvers[owner_index] = true;
 
         let tx = &mut ctx.accounts.transaction;
+
         tx.program_id = pid;
-        tx.accounts = accs;
-        tx.data = data;
-        tx.signers = signers;
+        tx.id = ctx.accounts.multisig.proposal_counter;
+        tx.amount = amount;
+        tx.to = to;
         tx.multisig = ctx.accounts.multisig.key();
+        tx.approvers = approvers;
         tx.did_execute = false;
-        tx.owner_set_seqno = ctx.accounts.multisig.owner_set_seqno;
+
+        ctx.accounts.multisig.proposal_counter += 1;
 
         Ok(())
     }
@@ -68,6 +75,7 @@ pub struct InitWallet<'info> {
 
 #[derive(Accounts)]
 pub struct ProposeTransaction<'info> {
+    #[account(mut)]
     multisig: Box<Account<'info, MultiSig>>,
     #[account(zero, signer)]
     transaction: Box<Account<'info, Transaction>>,
@@ -80,7 +88,7 @@ pub struct MultiSig {
     pub owners: Vec<Pubkey>,
     pub threshold: u64,
     pub nonce: u8,
-    pub owner_set_seqno: u32,
+    pub proposal_counter: u64,
 }
 
 #[account]
@@ -89,42 +97,16 @@ pub struct Transaction {
     pub multisig: Pubkey,
     // Target program to execute against.
     pub program_id: Pubkey,
-    // Accounts requried for the transaction.
-    pub accounts: Vec<TransactionAccount>,
-    // Instruction data for the transaction.
-    pub data: Vec<u8>,
-    // signers[index] is true iff multisig.owners[index] signed the transaction.
-    pub signers: Vec<bool>,
+    // Transaction's ID.
+    pub id: u64,
+    // Proposed receiver of the transaction.
+    pub to: Pubkey,
+    // Proposed amount to send
+    pub amount: u64,
+    // approvers[index] is true if multisig.owners[index] signed the transaction.
+    pub approvers: Vec<bool>,
     // Boolean ensuring one time execution.
     pub did_execute: bool,
-    // Owner set sequence number.
-    pub owner_set_seqno: u32,
-}
-
-#[derive(AnchorSerialize, AnchorDeserialize, Clone)]
-pub struct TransactionAccount {
-    pub pubkey: Pubkey,
-    pub is_signer: bool,
-    pub is_writable: bool,
-}
-
-impl From<&TransactionAccount> for AccountMeta {
-    fn from(account: &TransactionAccount) -> AccountMeta {
-        match account.is_writable {
-            false => AccountMeta::new_readonly(account.pubkey, account.is_signer),
-            true => AccountMeta::new(account.pubkey, account.is_signer),
-        }
-    }
-}
-
-impl From<&AccountMeta> for TransactionAccount {
-    fn from(account_meta: &AccountMeta) -> TransactionAccount {
-        TransactionAccount {
-            pubkey: account_meta.pubkey,
-            is_signer: account_meta.is_signer,
-            is_writable: account_meta.is_writable,
-        }
-    }
 }
 
 fn assert_unique_owners(owners: &[Pubkey]) -> Result<()> {
