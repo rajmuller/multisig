@@ -1,9 +1,9 @@
 use anchor_lang::prelude::*;
 
 // linux
-// declare_id!("8XHSyugWk2uYagCREiD2fSRkgGcTPYvwipXgd9c7em2i");
-//mac
-declare_id!("Fdjkm4r6FHzt3XmwrD26aLYPG74eJuxnmRby6zxNYfiQ");
+declare_id!("8XHSyugWk2uYagCREiD2fSRkgGcTPYvwipXgd9c7em2i");
+// //mac
+// declare_id!("Fdjkm4r6FHzt3XmwrD26aLYPG74eJuxnmRby6zxNYfiQ");
 
 #[program]
 pub mod multisig {
@@ -26,13 +26,14 @@ pub mod multisig {
         let wallet = &mut ctx.accounts.wallet;
         wallet.owners = owners;
         wallet.threshold = threshold;
+        wallet.proposal_counter = 0;
+
         Ok(())
     }
 
     // propose a transaction for the other owners to approve
     pub fn propose_transaction(
         ctx: Context<ProposeTransaction>,
-        slug: String,
         to: Pubkey,
         amount: u64,
     ) -> Result<()> {
@@ -49,13 +50,16 @@ pub mod multisig {
         approvers[owner_index] = true;
 
         let tx = &mut ctx.accounts.transaction;
+        let wallet = &mut ctx.accounts.wallet;
 
-        tx.slug = slug;
+        tx.proposal_id = wallet.proposal_counter;
         tx.amount = amount;
         tx.to = to;
-        tx.wallet = ctx.accounts.wallet.key();
+        tx.wallet = wallet.key();
         tx.approvers = approvers;
         tx.did_execute = false;
+
+        wallet.proposal_counter += 1;
 
         Ok(())
     }
@@ -126,7 +130,6 @@ pub struct CreateWallet<'info> {
 }
 
 #[derive(Accounts)]
-#[instruction(slug: String)]
 pub struct ProposeTransaction<'info> {
     #[account(mut)]
     wallet: Account<'info, Wallet>,
@@ -135,7 +138,7 @@ pub struct ProposeTransaction<'info> {
         seeds = [
             b"transaction".as_ref(),
             wallet.key().as_ref(),
-            slug.as_ref(),
+            wallet.proposal_counter.to_string().as_ref(),
         ],
         bump,
         payer = payer,
@@ -163,14 +166,15 @@ pub struct ApproveTransaction<'info> {
 pub struct Wallet {
     pub owners: Vec<Pubkey>,
     pub threshold: u64,
+    pub proposal_counter: u64,
 }
 
 #[account]
 pub struct Transaction {
     // The wallet account this transaction belongs to.
     pub wallet: Pubkey,
-    // Transaction's slug.
-    pub slug: String,
+    // Transaction's id.
+    pub proposal_id: u64,
     // Proposed receiver of the transaction.
     pub to: Pubkey,
     // Proposed amount to send

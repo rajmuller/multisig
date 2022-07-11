@@ -4,9 +4,9 @@ skip-lint = false
 
 [programs.localnet]
 # linux
-# multisig = "8XHSyugWk2uYagCREiD2fSRkgGcTPYvwipXgd9c7em2i"
+multisig = "8XHSyugWk2uYagCREiD2fSRkgGcTPYvwipXgd9c7em2i"
 # mac
-multisig = "Fdjkm4r6FHzt3XmwrD26aLYPG74eJuxnmRby6zxNYfiQ"
+# multisig = "Fdjkm4r6FHzt3XmwrD26aLYPG74eJuxnmRby6zxNYfiQ"
 
 [programs.devnet]
 multisig = "8XHSyugWk2uYagCREiD2fSRkgGcTPYvwipXgd9c7em2i"
@@ -17,9 +17,9 @@ url = "https://api.apr.dev"
 [provider]
 cluster = "localnet"
 # linux
-# wallet = "/home/rajfta/.config/solana/devnet.json"
+wallet = "/home/rajfta/.config/solana/devnet.json"
 # mac
-wallet = "/Users/adam.rajmuller/.config/solana/id.json"
+# wallet = "/Users/adam.rajmuller/.config/solana/id.json"
 
 [scripts]
 test = "yarn run ts-mocha -p ./tsconfig.json -t 1000000 tests/**/*.ts"

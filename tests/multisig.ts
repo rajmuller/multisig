@@ -46,6 +46,7 @@ describe("multisig", () => {
     );
 
     expect(multiSigState.owners).to.eql(owners);
+    expect(multiSigState.proposalCounter.toString()).to.eql("0");
     expect(multiSigState.threshold.toString()).to.eql(threshold.toString());
   });
 
@@ -90,7 +91,6 @@ describe("multisig", () => {
   it.only("It should propose a transaction!", async () => {
     const walletKeypair = anchor.web3.Keypair.generate();
     const multisigSize = 200; // Big enough.
-    const txSize = 1000; // Big enough.
 
     const ownerAKeypair = anchor.web3.Keypair.generate();
     const ownerBKeypair = anchor.web3.Keypair.generate();
@@ -118,21 +118,25 @@ describe("multisig", () => {
       ])
       .rpc();
 
-    const testSlug = "test-transaction-slug";
+    const previousWalletAccountState = await program.account.wallet.fetch(
+      walletKeypair.publicKey
+    );
+
+    const proposalId = previousWalletAccountState.proposalCounter.toString();
     const amount = new anchor.BN(0.1 * LAMPORTS_PER_SOL);
 
     const [transactionAccount] = await anchor.web3.PublicKey.findProgramAddress(
       [
         Buffer.from("transaction"),
         walletKeypair.publicKey.toBuffer(),
-        Buffer.from(testSlug),
+        Buffer.from(proposalId),
       ],
       program.programId
     );
 
     // propose transaction
     await program.methods
-      .proposeTransaction(testSlug, receiverKeypair.publicKey, amount)
+      .proposeTransaction(receiverKeypair.publicKey, amount)
       .accounts({
         wallet: walletKeypair.publicKey,
         transaction: transactionAccount,
@@ -143,29 +147,21 @@ describe("multisig", () => {
       .signers([ownerAKeypair])
       .rpc();
 
+    const transactionAccountState = await program.account.transaction.fetch(
+      transactionAccount
+    );
     const walletAccountState = await program.account.wallet.fetch(
       walletKeypair.publicKey
     );
-    const transAccountState = await program.account.transaction.fetch(
-      transactionAccount
-    );
 
-    const walletAccountInfo = await program.provider.connection.getAccountInfo(
-      walletKeypair.publicKey
-    );
+    console.log("transAccountState :", transactionAccountState);
 
-    console.log("transAccountState :", transAccountState);
-    const transactionAccountInfo =
-      await program.provider.connection.getAccountInfo(transactionAccount);
-    // const transactionAccountState = program.idl.accounts[1].decode(
-    //   transactionAccountInfo.data
-    // );
-
-    // expect(transactionState.multisig).to.eql(walletKeypair.publicKey);
-    // expect(transactionState.multisig).to.eql(walletKeypair.publicKey);
-    // expect(transactionState.approvers).to.eql([true, false, false]);
-    // expect(transactionState.didExecute).to.eql(false);
-    // expect(transactionState.amount.toString()).to.eql(amount.toString());
+    expect(walletAccountState.proposalCounter.toString()).to.eql("1");
+    expect(transactionAccountState.wallet).to.eql(walletKeypair.publicKey);
+    expect(transactionAccountState.proposalId.toString).to.eql("0");
+    expect(transactionAccountState.approvers).to.eql([true, false, false]);
+    expect(transactionAccountState.didExecute).to.eql(false);
+    expect(transactionAccountState.amount.toString()).to.eql(amount.toString());
   });
 
   it("It should approve transaction", async () => {
