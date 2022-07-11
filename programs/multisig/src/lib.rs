@@ -8,6 +8,9 @@ declare_id!("8XHSyugWk2uYagCREiD2fSRkgGcTPYvwipXgd9c7em2i");
 #[program]
 pub mod multisig {
 
+    use anchor_lang::solana_program::program::invoke;
+    use anchor_lang::solana_program::system_instruction::transfer;
+
     use super::*;
 
     // init new multisig wallet wallet with set of owners and threshold
@@ -79,48 +82,47 @@ pub mod multisig {
     }
 
     // Executes the given transaction if threshold owners have signed it.
-    // pub fn execute_transaction(ctx: Context<ExecuteTransaction>) -> Result<()> {
-    //     // Has this been executed already?
-    //     if ctx.accounts.transaction.did_execute {
-    //         return Err(ErrorCode::AlreadyExecuted.into());
-    //     }
+    pub fn execute_transaction(ctx: Context<ExecuteTransaction>) -> Result<()> {
+        // Has this been executed already?
+        // if ctx.accounts.transaction.did_execute {
+        //     return Err(MultiSigError::AlreadyExecuted.into());
+        // }
 
-    //     // Do we have enough signers.
-    //     let sig_count = ctx
-    //         .accounts
-    //         .transaction
-    //         .signers
-    //         .iter()
-    //         .filter(|&did_sign| *did_sign)
-    //         .count() as u64;
-    //     if sig_count < ctx.accounts.wallet.threshold {
-    //         return Err(ErrorCode::NotEnoughSigners.into());
-    //     }
+        // // Do we have enough signers.
+        // let sig_count = ctx
+        //     .accounts
+        //     .transaction
+        //     .approvers
+        //     .iter()
+        //     .filter(|&did_sign| *did_sign)
+        //     .count() as u64;
+        // if sig_count < ctx.accounts.wallet.threshold {
+        //     return Err(MultiSigError::NotEnoughSigners.into());
+        // }
 
-    //     // Execute the transaction signed by the wallet.
-    //     let mut ix: Instruction = (*ctx.accounts.transaction).deref().into();
-    //     ix.accounts = ix
-    //         .accounts
-    //         .iter()
-    //         .map(|acc| {
-    //             let mut acc = acc.clone();
-    //             if &acc.pubkey == ctx.accounts.multisig_signer.key {
-    //                 acc.is_signer = true;
-    //             }
-    //             acc
-    //         })
-    //         .collect();
-    //     let multisig_key = ctx.accounts.wallet.key();
-    //     let seeds = &[multisig_key.as_ref(), &[ctx.accounts.wallet.nonce]];
-    //     let signer = &[&seeds[..]];
-    //     let accounts = ctx.remaining_accounts;
-    //     solana_program::program::invoke_signed(&ix, accounts, signer)?;
+        let from_obj = &mut ctx.accounts.from;
+        let to_obj = &mut ctx.accounts.to;
 
-    //     // Burn the transaction to ensure one time use.
-    //     ctx.accounts.transaction.did_execute = true;
+        let ix = &transfer(
+            &from_obj.to_account_info().unsigned_key(),
+            &to_obj.to_account_info().key,
+            100_000_000,
+        );
 
-    //     Ok(())
-    // }
+        invoke(
+            &ix,
+            &[
+                from_obj.to_account_info(),
+                to_obj.to_account_info(),
+                ctx.accounts.system_program.to_account_info(),
+            ],
+        )?;
+
+        // Burn the transaction to ensure one time use.
+        // ctx.accounts.transaction.did_execute = true;
+
+        Ok(())
+    }
 }
 
 #[derive(Accounts)]
@@ -162,6 +164,19 @@ pub struct ApproveTransaction<'info> {
     approver: Signer<'info>,
 }
 
+#[derive(Accounts)]
+pub struct ExecuteTransaction<'info> {
+    // #[account(mut)]
+    // wallet: Account<'info, Wallet>,
+    // #[account(mut)]
+    // transaction: Account<'info, Transaction>,
+    #[account(mut)]
+    from: Signer<'info>,
+    /// CHECK: This is not dangerous because we don't read or write from this account
+    to: AccountInfo<'info>,
+    system_program: Program<'info, System>,
+}
+
 #[account]
 pub struct Wallet {
     pub owners: Vec<Pubkey>,
@@ -184,6 +199,13 @@ pub struct Transaction {
     // Boolean ensuring one time execution.
     pub did_execute: bool,
 }
+
+// #[derive(AnchorSerialize, AnchorDeserialize, Clone)]
+// pub struct TransactionAccount {
+//     pub pubkey: Pubkey,
+//     pub is_signer: bool,
+//     pub is_writable: bool,
+// }
 
 fn assert_unique_owners(owners: &[Pubkey]) -> Result<()> {
     for (i, owner) in owners.iter().enumerate() {
