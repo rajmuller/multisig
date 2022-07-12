@@ -54,17 +54,17 @@ pub mod multisig {
         approvers.resize(ctx.accounts.multisig_wallet_account.owners.len(), false);
         approvers[owner_index] = true;
 
-        let tx = &mut ctx.accounts.transaction;
-        let wallet = &mut ctx.accounts.multisig_wallet_account;
+        let transaction_account = &mut ctx.accounts.transaction_account;
+        let multisig_wallet_account = &mut ctx.accounts.multisig_wallet_account;
 
-        tx.proposal_id = wallet.proposal_counter;
-        tx.amount = amount;
-        tx.to = to;
-        tx.wallet = wallet.key();
-        tx.approvers = approvers;
-        tx.did_execute = false;
+        transaction_account.proposal_id = multisig_wallet_account.proposal_counter;
+        transaction_account.amount = amount;
+        transaction_account.to = to;
+        transaction_account.multisig_wallet_address = multisig_wallet_account.key().clone();
+        transaction_account.approvers = approvers;
+        transaction_account.did_execute = false;
 
-        wallet.proposal_counter += 1;
+        multisig_wallet_account.proposal_counter += 1;
 
         Ok(())
     }
@@ -78,7 +78,7 @@ pub mod multisig {
             .position(|a| a == ctx.accounts.approver.key)
             .ok_or(MultiSigError::InvalidOwner)?;
 
-        ctx.accounts.transaction.approvers[owner_index] = true;
+        ctx.accounts.transaction_account.approvers[owner_index] = true;
 
         Ok(())
     }
@@ -133,31 +133,42 @@ pub struct InitializeNewMultisigWallet<'info> {
 
 #[derive(Accounts)]
 pub struct ProposeTransaction<'info> {
-    #[account(mut)]
-    multisig_wallet_account: Account<'info, MultisigWalletState>,
     #[account(
         init,
+        space = 1000,
+        payer = proposer,
         seeds = [
             b"transaction".as_ref(),
             multisig_wallet_account.key().as_ref(),
-            multisig_wallet_account.proposal_counter.to_string().as_ref(),
+            multisig_wallet_account.proposal_counter.to_le_bytes().as_ref(),
         ],
         bump,
-        payer = proposer,
-        space = 1000
     )]
-    transaction: Account<'info, Transaction>,
-    system_program: Program<'info, System>,
-    // One of the owners. Checked in the handler.
+    transaction_account: Account<'info, TransactionState>,
+
+    #[account(
+        mut,
+        seeds=[b"multisig".as_ref(),multisig_wallet_account.idx.to_le_bytes().as_ref()],
+        bump,
+        // has_one = user_sending,
+        // has_one = user_receiving,
+        // has_one = mint_of_token_being_sent,
+    )]
+    multisig_wallet_account: Account<'info, MultisigWalletState>,
     #[account(mut)]
+    // One of the owners. Checked in the handler.
     proposer: Signer<'info>,
+
+    // Application level accounts
+    system_program: Program<'info, System>,
+    rent: Sysvar<'info, Rent>,
 }
 
 #[derive(Accounts)]
 pub struct ApproveTransaction<'info> {
     wallet: Account<'info, MultisigWalletState>,
     #[account(mut)]
-    transaction: Account<'info, Transaction>,
+    transaction_account: Account<'info, TransactionState>,
     // One of the wallet owners. Checked in the handler.
     approver: Signer<'info>,
 }
@@ -184,9 +195,9 @@ pub struct MultisigWalletState {
 }
 
 #[account]
-pub struct Transaction {
+pub struct TransactionState {
     // The wallet account this transaction belongs to.
-    pub wallet: Pubkey,
+    pub multisig_wallet_address: Pubkey,
     // Transaction's id.
     pub proposal_id: u64,
     // Proposed receiver of the transaction.
@@ -199,12 +210,12 @@ pub struct Transaction {
     pub did_execute: bool,
 }
 
-#[derive(AnchorSerialize, AnchorDeserialize, Clone)]
-pub struct TransactionAccount {
-    pub pubkey: Pubkey,
-    pub is_signer: bool,
-    pub is_writable: bool,
-}
+// #[derive(AnchorSerialize, AnchorDeserialize, Clone)]
+// pub struct TransactionAccount {
+//     pub pubkey: Pubkey,
+//     pub is_signer: bool,
+//     pub is_writable: bool,
+// }
 
 fn assert_unique_owners(owners: &[Pubkey]) -> Result<()> {
     for (i, owner) in owners.iter().enumerate() {
