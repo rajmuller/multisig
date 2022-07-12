@@ -1,6 +1,4 @@
 use anchor_lang::prelude::*;
-use anchor_lang::solana_program::program::invoke_signed;
-use anchor_lang::solana_program::system_instruction::transfer;
 use anchor_lang::solana_program::system_program;
 
 // linux
@@ -29,7 +27,6 @@ pub mod multisig {
 
         let multisig_wallet_account = &mut ctx.accounts.multisig_wallet_account;
         multisig_wallet_account.idx = wallet_idx;
-        // multisig_wallet_account.treasury_wallet = ctx.accounts.treasury_account.key();
         multisig_wallet_account.owners = owners;
         multisig_wallet_account.threshold = threshold;
         multisig_wallet_account.proposal_counter = 0;
@@ -86,45 +83,36 @@ pub mod multisig {
 
     // Executes the given transaction if threshold owners have signed it.
     pub fn execute_transaction(ctx: Context<ExecuteTransaction>) -> Result<()> {
-        // let transfer_instruction = &transfer(
-        //     &ctx.accounts.multisig_wallet_account.key(),
-        //     &ctx.accounts.recipient.key(),
-        //     100_000_000,
-        // );
+        // Has this been executed already?
+        require!(
+            !ctx.accounts.transaction_account.did_execute,
+            MultiSigError::InvalidOwnersLen
+        );
 
-        // let multi_sig_bump = *ctx.bumps.get("multisig_wallet_account").unwrap();
-        // msg!(
-        //     "ctx.accounts.recipient.to_account_info() {:#?}",
-        //     ctx.accounts.recipient.to_account_info()
-        // );
-        // msg!(
-        //     "ctx.accounts.multisig_wallet_account.to_account_info() {:#?}",
-        //     ctx.accounts.multisig_wallet_account.to_account_info()
-        // );
+        // Do we have enough signers.
+        let sig_count = ctx
+            .accounts
+            .transaction_account
+            .approvers
+            .iter()
+            .filter(|&did_sign| *did_sign)
+            .count() as u64;
+        require!(
+            sig_count >= ctx.accounts.multisig_wallet_account.threshold,
+            MultiSigError::NotEnoughSigners
+        );
+
+        let amount = ctx.accounts.transaction_account.amount;
 
         let wallet_info = ctx.accounts.multisig_wallet_account.to_account_info();
         let recipient_info = ctx.accounts.recipient.to_account_info();
 
         **recipient_info.try_borrow_mut_lamports()? =
-            recipient_info.lamports().checked_add(100_000_000).unwrap();
+            recipient_info.lamports().checked_add(amount).unwrap();
         **wallet_info.try_borrow_mut_lamports()? =
-            wallet_info.lamports().checked_sub(100_000_000).unwrap();
+            wallet_info.lamports().checked_sub(amount).unwrap();
 
-        // let multisig_account_seeds = &[b"multisig".as_ref(), &[multi_sig_bump]];
-        // let multisig_account_signer_seeds = &[&multisig_account_seeds[..]];
-        // msg!("multisig_account_seeds {:#?}", multisig_account_seeds);
-
-        // invoke_signed(
-        //     transfer_instruction,
-        //     &[
-        //         ctx.accounts
-        //             .multisig_wallet_account
-        //             .to_account_info()
-        //             .clone(),
-        //         ctx.accounts.recipient.to_account_info().clone(),
-        //     ],
-        //     multisig_account_signer_seeds,
-        // )?;
+        ctx.accounts.transaction_account.did_execute = true;
 
         Ok(())
     }
@@ -138,19 +126,11 @@ pub struct InitializeNewMultisigWallet<'info> {
         init,
         space = 1000,
         payer = payer,
-        seeds=[b"multisig".as_ref()],
+        seeds=[b"multisig".as_ref(), wallet_idx.to_le_bytes().as_ref()],
         bump,
     )]
     multisig_wallet_account: Account<'info, MultisigWalletState>,
-    // #[account(
-    //     init,
-    //     space = 690,
-    //     payer = payer,
-    //     seeds=[b"treasury".as_ref()],
-    //     bump,
-    // )]
-    // ///CHECK: asd
-    // treasury_account: AccountInfo<'info>,
+
     #[account(mut)]
     payer: Signer<'info>,
 
@@ -167,17 +147,19 @@ pub struct ProposeTransaction<'info> {
         payer = proposer,
         seeds = [
             b"transaction".as_ref(),
+            multisig_wallet_account.key().as_ref(),
+            multisig_wallet_account.proposal_counter.to_le_bytes().as_ref(),
         ],
         bump,
     )]
     transaction_account: Account<'info, TransactionState>,
-
     #[account(
         mut,
-        seeds=[b"multisig".as_ref()],
+        seeds=[b"multisig".as_ref(), multisig_wallet_account.idx.to_le_bytes().as_ref()],
         bump,
     )]
     multisig_wallet_account: Account<'info, MultisigWalletState>,
+
     #[account(mut)]
     // One of the owners. Checked in the handler.
     proposer: Signer<'info>,
@@ -191,7 +173,7 @@ pub struct ProposeTransaction<'info> {
 pub struct ApproveTransaction<'info> {
     #[account(
         mut,
-        seeds=[b"multisig".as_ref()],
+        seeds=[b"multisig".as_ref(), multisig_wallet_account.idx.to_le_bytes().as_ref()],
         bump,
     )]
     multisig_wallet_account: Account<'info, MultisigWalletState>,
@@ -199,6 +181,8 @@ pub struct ApproveTransaction<'info> {
         mut,
         seeds = [
             b"transaction".as_ref(),
+            multisig_wallet_account.key().as_ref(),
+            transaction_account.proposal_id.to_le_bytes().as_ref(),
         ],
         bump,
     )]
@@ -213,7 +197,7 @@ pub struct ApproveTransaction<'info> {
 pub struct ExecuteTransaction<'info> {
     #[account(
         mut,
-        seeds=[b"multisig".as_ref()],
+        seeds=[b"multisig".as_ref(), multisig_wallet_account.idx.to_le_bytes().as_ref()],
         bump,
     )]
     multisig_wallet_account: Account<'info, MultisigWalletState>,
@@ -221,6 +205,8 @@ pub struct ExecuteTransaction<'info> {
         mut,
         seeds = [
             b"transaction".as_ref(),
+            multisig_wallet_account.key().as_ref(),
+            transaction_account.proposal_id.to_le_bytes().as_ref(),
         ],
         bump,
     )]
@@ -240,7 +226,6 @@ pub struct MultisigWalletState {
     pub owners: Vec<Pubkey>,
     pub threshold: u64,
     pub proposal_counter: u64,
-    // pub treasury_wallet: Pubkey,
 }
 
 #[account]
@@ -258,13 +243,6 @@ pub struct TransactionState {
     // Boolean ensuring one time execution.
     pub did_execute: bool,
 }
-
-// #[derive(AnchorSerialize, AnchorDeserialize, Clone)]
-// pub struct TransactionAccount {
-//     pub pubkey: Pubkey,
-//     pub is_signer: bool,
-//     pub is_writable: bool,
-// }
 
 fn assert_unique_owners(owners: &[Pubkey]) -> Result<()> {
     for (i, owner) in owners.iter().enumerate() {

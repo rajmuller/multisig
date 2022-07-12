@@ -4,13 +4,11 @@ import { expect } from "chai";
 import { LAMPORTS_PER_SOL } from "@solana/web3.js";
 import { Multisig } from "../target/types/multisig";
 
-type MultisigPDA = {
+type PDA = {
   multisigIdx: anchor.BN;
   multisigWalletPubKey: anchor.web3.PublicKey;
   multisigBump: number;
-};
 
-type TransactionPDA = {
   transactionIdx: anchor.BN;
   transactionPubKey: anchor.web3.PublicKey;
   transactionBump: number;
@@ -32,42 +30,36 @@ describe("multisig", () => {
   let ownerCKeypair: anchor.web3.Keypair;
   let receiverPubKey: anchor.web3.PublicKey;
 
-  let multisigPDA: MultisigPDA;
+  let pda: PDA;
 
   let owners: anchor.web3.PublicKey[];
 
-  const getMultisigPDA = async (): Promise<MultisigPDA> => {
+  const getPDAs = async (): Promise<PDA> => {
     const uid = new anchor.BN(parseInt((Date.now() / 1000).toString()));
     const uidBuffer = uid.toBuffer("le", 8);
-
     const [multisigWalletPubKey, multisigBump] =
       await anchor.web3.PublicKey.findProgramAddress(
-        [Buffer.from("multisig")],
+        [Buffer.from("multisig"), uidBuffer],
         program.programId
       );
-    return {
-      multisigIdx: uid,
-      multisigWalletPubKey,
-      multisigBump,
-    };
-  };
 
-  const getTransactionPDA = async (
-    multisigPubKey: anchor.web3.PublicKey,
-    proposalCount: anchor.BN
-  ): Promise<TransactionPDA> => {
+    const proposalCount = new anchor.BN(0);
     const proposalCountBuffer = proposalCount.toBuffer("le", 8);
-
     const [transactionPubKey, transactionBump] =
       await anchor.web3.PublicKey.findProgramAddress(
         [
           Buffer.from("transaction"),
-          // multisigPubKey.toBuffer(),
-          // proposalCountBuffer,
+          multisigWalletPubKey.toBuffer(),
+          proposalCountBuffer,
         ],
         program.programId
       );
+
     return {
+      multisigIdx: uid,
+      multisigWalletPubKey,
+      multisigBump,
+
       transactionIdx: proposalCount,
       transactionPubKey,
       transactionBump,
@@ -98,25 +90,23 @@ describe("multisig", () => {
 
   const readMultisigState = async () => {
     const multiSigState = await program.account.multisigWalletState.fetch(
-      multisigPDA.multisigWalletPubKey
+      pda.multisigWalletPubKey
     );
 
     const multiSigInfo = await provider.connection.getAccountInfo(
-      multisigPDA.multisigWalletPubKey
+      pda.multisigWalletPubKey
     );
 
     return { multiSigState, multiSigInfo };
   };
 
-  const readTransactionState = async (
-    transactionPubkey: anchor.web3.PublicKey
-  ) => {
+  const readTransactionState = async () => {
     const transactionState = await program.account.transactionState.fetch(
-      transactionPubkey
+      pda.transactionPubKey
     );
 
     const transactionInfo = await provider.connection.getAccountInfo(
-      transactionPubkey
+      pda.transactionPubKey
     );
 
     return { transactionState, transactionInfo };
@@ -134,14 +124,14 @@ describe("multisig", () => {
       ownerCKeypair.publicKey,
     ];
 
-    multisigPDA = await getMultisigPDA();
+    pda = await getPDAs();
   });
 
   it("It should initialize successfully!", async () => {
     await program.methods
-      .initializeNewMultisigWallet(multisigPDA.multisigIdx, owners, threshold)
+      .initializeNewMultisigWallet(pda.multisigIdx, owners, threshold)
       .accounts({
-        multisigWalletAccount: multisigPDA.multisigWalletPubKey,
+        multisigWalletAccount: pda.multisigWalletPubKey,
         payer: ownerAKeypair.publicKey,
         systemProgram: anchor.web3.SystemProgram.programId,
         rent: anchor.web3.SYSVAR_RENT_PUBKEY,
@@ -151,9 +141,7 @@ describe("multisig", () => {
 
     const { multiSigState } = await readMultisigState();
 
-    expect(multiSigState.idx.toString()).to.eql(
-      multisigPDA.multisigIdx.toString()
-    );
+    expect(multiSigState.idx.toString()).to.eql(pda.multisigIdx.toString());
     expect(multiSigState.proposalCounter.toString()).to.eql("0");
     expect(multiSigState.threshold.toString()).to.eql(threshold.toString());
     expect(multiSigState.owners).to.eql(owners);
@@ -165,12 +153,12 @@ describe("multisig", () => {
     try {
       await program.methods
         .initializeNewMultisigWallet(
-          multisigPDA.multisigIdx,
+          pda.multisigIdx,
           owners,
           overTheLimitThreshold
         )
         .accounts({
-          multisigWalletAccount: multisigPDA.multisigWalletPubKey,
+          multisigWalletAccount: pda.multisigWalletPubKey,
           payer: ownerAKeypair.publicKey,
           systemProgram: anchor.web3.SystemProgram.programId,
           rent: anchor.web3.SYSVAR_RENT_PUBKEY,
@@ -187,9 +175,9 @@ describe("multisig", () => {
 
   it("It should propose a transaction!", async () => {
     await program.methods
-      .initializeNewMultisigWallet(multisigPDA.multisigIdx, owners, threshold)
+      .initializeNewMultisigWallet(pda.multisigIdx, owners, threshold)
       .accounts({
-        multisigWalletAccount: multisigPDA.multisigWalletPubKey,
+        multisigWalletAccount: pda.multisigWalletPubKey,
         payer: ownerAKeypair.publicKey,
         systemProgram: anchor.web3.SystemProgram.programId,
         rent: anchor.web3.SYSVAR_RENT_PUBKEY,
@@ -199,19 +187,12 @@ describe("multisig", () => {
 
     const { multiSigState: previousMultiSigState } = await readMultisigState();
 
-    const proposalCount = previousMultiSigState.proposalCounter;
-
-    const { transactionPubKey } = await getTransactionPDA(
-      multisigPDA.multisigWalletPubKey,
-      proposalCount
-    );
-
     // propose transaction
     await program.methods
       .proposeTransaction(receiverPubKey, amount)
       .accounts({
-        transactionAccount: transactionPubKey,
-        multisigWalletAccount: multisigPDA.multisigWalletPubKey,
+        transactionAccount: pda.transactionPubKey,
+        multisigWalletAccount: pda.multisigWalletPubKey,
         proposer: ownerAKeypair.publicKey,
         systemProgram: anchor.web3.SystemProgram.programId,
         rent: anchor.web3.SYSVAR_RENT_PUBKEY,
@@ -220,13 +201,13 @@ describe("multisig", () => {
       .rpc();
 
     const { multiSigState } = await readMultisigState();
-    const { transactionState } = await readTransactionState(transactionPubKey);
+    const { transactionState } = await readTransactionState();
 
     expect(multiSigState.proposalCounter.toNumber()).to.eql(
       previousMultiSigState.proposalCounter.toNumber() + 1
     );
     expect(transactionState.multisigWalletAddress).to.eql(
-      multisigPDA.multisigWalletPubKey
+      pda.multisigWalletPubKey
     );
     expect(transactionState.proposalId.toNumber()).to.eql(0);
     expect(transactionState.approvers).to.eql([true, false, false]);
@@ -237,9 +218,9 @@ describe("multisig", () => {
 
   it("It should approve transaction", async () => {
     await program.methods
-      .initializeNewMultisigWallet(multisigPDA.multisigIdx, owners, threshold)
+      .initializeNewMultisigWallet(pda.multisigIdx, owners, threshold)
       .accounts({
-        multisigWalletAccount: multisigPDA.multisigWalletPubKey,
+        multisigWalletAccount: pda.multisigWalletPubKey,
         payer: ownerAKeypair.publicKey,
         systemProgram: anchor.web3.SystemProgram.programId,
         rent: anchor.web3.SYSVAR_RENT_PUBKEY,
@@ -251,17 +232,12 @@ describe("multisig", () => {
 
     const proposalCount = previousMultiSigState.proposalCounter;
 
-    const { transactionPubKey } = await getTransactionPDA(
-      multisigPDA.multisigWalletPubKey,
-      proposalCount
-    );
-
     // propose transaction
     await program.methods
       .proposeTransaction(receiverPubKey, amount)
       .accounts({
-        transactionAccount: transactionPubKey,
-        multisigWalletAccount: multisigPDA.multisigWalletPubKey,
+        transactionAccount: pda.transactionPubKey,
+        multisigWalletAccount: pda.multisigWalletPubKey,
         proposer: ownerAKeypair.publicKey,
         systemProgram: anchor.web3.SystemProgram.programId,
         rent: anchor.web3.SYSVAR_RENT_PUBKEY,
@@ -272,24 +248,24 @@ describe("multisig", () => {
     await program.methods
       .approveTransaction()
       .accounts({
-        transactionAccount: transactionPubKey,
-        multisigWalletAccount: multisigPDA.multisigWalletPubKey,
+        transactionAccount: pda.transactionPubKey,
+        multisigWalletAccount: pda.multisigWalletPubKey,
         approver: ownerBKeypair.publicKey,
       })
       .signers([ownerBKeypair])
       .rpc();
 
-    const { transactionState } = await readTransactionState(transactionPubKey);
+    const { transactionState } = await readTransactionState();
     expect(transactionState.approvers.toString()).to.equal(
       [true, true, false].toString()
     );
   });
 
-  it.only("It should execute a transaction!", async () => {
+  it("It should execute a transaction!", async () => {
     await program.methods
-      .initializeNewMultisigWallet(multisigPDA.multisigIdx, owners, threshold)
+      .initializeNewMultisigWallet(pda.multisigIdx, owners, threshold)
       .accounts({
-        multisigWalletAccount: multisigPDA.multisigWalletPubKey,
+        multisigWalletAccount: pda.multisigWalletPubKey,
         payer: ownerAKeypair.publicKey,
         systemProgram: anchor.web3.SystemProgram.programId,
         rent: anchor.web3.SYSVAR_RENT_PUBKEY,
@@ -301,17 +277,12 @@ describe("multisig", () => {
 
     const proposalCount = previousMultiSigState.proposalCounter;
 
-    const { transactionPubKey, transactionBump } = await getTransactionPDA(
-      multisigPDA.multisigWalletPubKey,
-      proposalCount
-    );
-
     // propose transaction
     await program.methods
       .proposeTransaction(receiverPubKey, amount)
       .accounts({
-        transactionAccount: transactionPubKey,
-        multisigWalletAccount: multisigPDA.multisigWalletPubKey,
+        transactionAccount: pda.transactionPubKey,
+        multisigWalletAccount: pda.multisigWalletPubKey,
         proposer: ownerAKeypair.publicKey,
         systemProgram: anchor.web3.SystemProgram.programId,
         rent: anchor.web3.SYSVAR_RENT_PUBKEY,
@@ -322,54 +293,45 @@ describe("multisig", () => {
     const approveTx = await program.methods
       .approveTransaction()
       .accounts({
-        transactionAccount: transactionPubKey,
-        multisigWalletAccount: multisigPDA.multisigWalletPubKey,
+        transactionAccount: pda.transactionPubKey,
+        multisigWalletAccount: pda.multisigWalletPubKey,
         approver: ownerBKeypair.publicKey,
       })
       .signers([ownerBKeypair])
       .rpc();
 
-    await fundAccount(multisigPDA.multisigWalletPubKey);
-    const { multiSigInfo } = await readMultisigState();
+    await fundAccount(pda.multisigWalletPubKey);
 
     const {
       transactionState: { to: recipientPubKey },
-    } = await readTransactionState(transactionPubKey);
+    } = await readTransactionState();
 
-    const txExe = await program.methods
-      .executeTransaction()
-      .accounts({
-        multisigWalletAccount: multisigPDA.multisigWalletPubKey,
-        transactionAccount: transactionPubKey,
-        recipient: recipientPubKey,
-        systemProgram: anchor.web3.SystemProgram.programId,
-      })
-      .rpc();
+    const previousMultisigBalance = await provider.connection.getBalance(
+      pda.multisigWalletPubKey
+    );
 
     await program.methods
       .executeTransaction()
       .accounts({
-        multisigWalletAccount: multisigPDA.multisigWalletPubKey,
-        transactionAccount: transactionPubKey,
+        multisigWalletAccount: pda.multisigWalletPubKey,
+        transactionAccount: pda.transactionPubKey,
         recipient: recipientPubKey,
         systemProgram: anchor.web3.SystemProgram.programId,
       })
       .rpc();
 
-    // const logExe = await provider.connection.getTransaction(txExe, {
-    //   commitment: "confirmed",
-    // });
-    // console.log(logExe.meta.logMessages);
-
-    const { transactionState } = await readTransactionState(transactionPubKey);
-    console.log({ transactionState });
+    const { transactionState } = await readTransactionState();
     const recipientBalance = await provider.connection.getBalance(
       recipientPubKey
     );
     const multisigBalance = await provider.connection.getBalance(
-      multisigPDA.multisigWalletPubKey
+      pda.multisigWalletPubKey
     );
-    console.log({ recipientBalance });
-    console.log({ multisigBalance });
+
+    expect(transactionState.didExecute).to.equal(true);
+    expect(recipientBalance).to.equal(amount.toNumber());
+    expect(previousMultisigBalance - amount.toNumber()).to.equal(
+      multisigBalance
+    );
   });
 });
