@@ -15,7 +15,7 @@ pub mod multisig {
 
     // init new multisig wallet wallet with set of owners and threshold
     pub fn create_wallet(
-        ctx: Context<CreateWallet>,
+        ctx: Context<InitializeNewMultisigWallet>,
         owners: Vec<Pubkey>,
         threshold: u64,
     ) -> Result<()> {
@@ -26,10 +26,10 @@ pub mod multisig {
         );
         require!(!owners.is_empty(), MultiSigError::InvalidOwnersLen);
 
-        let wallet = &mut ctx.accounts.wallet;
-        wallet.owners = owners;
-        wallet.threshold = threshold;
-        wallet.proposal_counter = 0;
+        let multisig_wallet_account = &mut ctx.accounts.multisig_wallet_account;
+        multisig_wallet_account.owners = owners;
+        multisig_wallet_account.threshold = threshold;
+        multisig_wallet_account.proposal_counter = 0;
 
         Ok(())
     }
@@ -42,18 +42,18 @@ pub mod multisig {
     ) -> Result<()> {
         let owner_index = ctx
             .accounts
-            .wallet
+            .multisig_wallet_account
             .owners
             .iter()
             .position(|a| a == ctx.accounts.proposer.key)
             .ok_or(MultiSigError::InvalidOwner)?;
 
         let mut approvers = Vec::new();
-        approvers.resize(ctx.accounts.wallet.owners.len(), false);
+        approvers.resize(ctx.accounts.multisig_wallet_account.owners.len(), false);
         approvers[owner_index] = true;
 
         let tx = &mut ctx.accounts.transaction;
-        let wallet = &mut ctx.accounts.wallet;
+        let wallet = &mut ctx.accounts.multisig_wallet_account;
 
         tx.proposal_id = wallet.proposal_counter;
         tx.amount = amount;
@@ -102,21 +102,43 @@ pub mod multisig {
 }
 
 #[derive(Accounts)]
-pub struct CreateWallet<'info> {
-    #[account(zero, signer)]
-    wallet: Account<'info, Wallet>,
+#[instruction(wallet_idx: u64, owners: Vec<Pubkey>)]
+pub struct InitializeNewMultisigWallet<'info> {
+    // PDAs
+    #[account(
+        init,
+        space = 690,
+        payer = payer,
+        seeds=[b"multisig".as_ref(), owners[0].as_ref(), owners[1].as_ref(), owners[2].as_ref(), wallet_idx.to_le_bytes().as_ref()],
+        bump,
+    )]
+    multisig_wallet_account: Account<'info, MultisigWalletState>,
+    // #[account(
+    //     init,
+    //     space = 690,
+    //     payer = payer,
+    //     seeds=[b"treasury".as_ref(), owners[0].as_ref(), owners[1].as_ref(), owners[2].as_ref(), wallet_idx.to_le_bytes().as_ref()],
+    //     bump,
+    // )]
+    // treasury_account: AccountInfo<'info>,
+    #[account(mut)]
+    payer: Signer<'info>,
+
+    // Application level accounts
+    system_program: Program<'info, System>,
+    rent: Sysvar<'info, Rent>,
 }
 
 #[derive(Accounts)]
 pub struct ProposeTransaction<'info> {
     #[account(mut)]
-    wallet: Account<'info, Wallet>,
+    multisig_wallet_account: Account<'info, MultisigWalletState>,
     #[account(
         init,
         seeds = [
             b"transaction".as_ref(),
-            wallet.key().as_ref(),
-            wallet.proposal_counter.to_string().as_ref(),
+            multisig_wallet_account.key().as_ref(),
+            multisig_wallet_account.proposal_counter.to_string().as_ref(),
         ],
         bump,
         payer = payer,
@@ -133,8 +155,8 @@ pub struct ProposeTransaction<'info> {
 
 #[derive(Accounts)]
 pub struct ApproveTransaction<'info> {
-    wallet: Account<'info, Wallet>,
-    #[account(mut, has_one = wallet)]
+    wallet: Account<'info, MultisigWalletState>,
+    #[account(mut)]
     transaction: Account<'info, Transaction>,
     // One of the wallet owners. Checked in the handler.
     approver: Signer<'info>,
@@ -151,13 +173,13 @@ pub struct ExecuteTransaction<'info> {
     system_program: Program<'info, System>,
 }
 
+// 1 MultisigWalletState instance == 1 Multiisig Wallet instance
 #[account]
-pub struct Wallet {
+pub struct MultisigWalletState {
     pub owners: Vec<Pubkey>,
     pub threshold: u64,
     pub proposal_counter: u64,
-    // The treasury wallet
-    treasury_wallet: Pubkey,
+    // pub treasury_wallet: Pubkey,
 }
 
 #[account]
@@ -176,12 +198,12 @@ pub struct Transaction {
     pub did_execute: bool,
 }
 
-// #[derive(AnchorSerialize, AnchorDeserialize, Clone)]
-// pub struct TransactionAccount {
-//     pub pubkey: Pubkey,
-//     pub is_signer: bool,
-//     pub is_writable: bool,
-// }
+#[derive(AnchorSerialize, AnchorDeserialize, Clone)]
+pub struct TransactionAccount {
+    pub pubkey: Pubkey,
+    pub is_signer: bool,
+    pub is_writable: bool,
+}
 
 fn assert_unique_owners(owners: &[Pubkey]) -> Result<()> {
     for (i, owner) in owners.iter().enumerate() {
