@@ -235,7 +235,7 @@ describe("multisig", () => {
     expect(transactionState.amount.toString()).to.eql(amount.toString());
   });
 
-  it.only("It should approve transaction", async () => {
+  it("It should approve transaction", async () => {
     await program.methods
       .initializeNewMultisigWallet(multisigPDA.multisigIdx, owners, threshold)
       .accounts({
@@ -279,11 +279,7 @@ describe("multisig", () => {
       .signers([ownerBKeypair])
       .rpc();
 
-    const { multiSigState } = await readMultisigState();
     const { transactionState } = await readTransactionState(transactionPubKey);
-    console.log({ multiSigState });
-    console.log({ transactionState });
-
     expect(transactionState.approvers).to.equal([true, true, false]);
   });
 
