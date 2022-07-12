@@ -1,5 +1,5 @@
 use anchor_lang::prelude::*;
-use anchor_lang::solana_program::program::invoke;
+use anchor_lang::solana_program::program::invoke_signed;
 use anchor_lang::solana_program::system_instruction::transfer;
 use anchor_lang::solana_program::system_program;
 
@@ -84,19 +84,35 @@ pub mod multisig {
     }
 
     // Executes the given transaction if threshold owners have signed it.
-    pub fn execute_transaction(ctx: Context<ExecuteTransaction>) -> Result<()> {
+    pub fn execute_transaction(ctx: Context<ExecuteTransaction>, bump: u8) -> Result<()> {
         let transfer_instruction = &transfer(
-            &ctx.accounts.from.to_account_info().key,
+            &ctx.accounts.multisig_wallet_account.to_account_info().key,
+            // maybe unsigned_key()
             &ctx.accounts.recipient.to_account_info().key,
             100_000_000,
         );
 
-        invoke(
+        // let gemworks_farm_treasury_bump = *ctx.bumps.get("gemworks_farm_treasury").unwrap();
+        let seeds = &[&[
+            b"multisig".as_ref(),
+            ctx.accounts
+                .multisig_wallet_account
+                .idx
+                .to_le_bytes()
+                .as_ref(),
+            &[bump],
+        ]];
+        let idx = ctx.accounts.multisig_wallet_account.idx.to_le_bytes();
+        let multisig_account_seeds = &[b"multisig".as_ref(), idx.as_ref(), &[bump]];
+        let multisig_account_signer_seeds = &[&multisig_account_seeds[..]];
+
+        invoke_signed(
             transfer_instruction,
             &[
-                ctx.accounts.from.to_account_info(),
+                ctx.accounts.multisig_wallet_account.to_account_info(),
                 ctx.accounts.recipient.to_account_info(),
             ],
+            multisig_account_signer_seeds,
         )?;
 
         Ok(())
@@ -187,11 +203,26 @@ pub struct ApproveTransaction<'info> {
 
 #[derive(Accounts)]
 pub struct ExecuteTransaction<'info> {
-    #[account(mut)]
-    from: Signer<'info>,
+    #[account(
+        mut,
+        seeds=[b"multisig".as_ref(),multisig_wallet_account.idx.to_le_bytes().as_ref()],
+        bump,
+    )]
+    multisig_wallet_account: Account<'info, MultisigWalletState>,
+    #[account(
+        mut,
+        seeds = [
+            b"transaction".as_ref(),
+            multisig_wallet_account.key().as_ref(),
+            transaction_account.proposal_id.to_le_bytes().as_ref(),
+        ],
+        bump,
+    )]
+    transaction_account: Account<'info, TransactionState>,
+
     #[account(mut)]
     /// CHECK: we only send lamport to this account
-    pub recipient: AccountInfo<'info>,
+    recipient: AccountInfo<'info>,
     #[account(address = system_program::ID)]
     system_program: Program<'info, System>,
 }

@@ -283,121 +283,69 @@ describe("multisig", () => {
     expect(transactionState.approvers).to.equal([true, true, false]);
   });
 
-  it("It should execute a transaction!", async () => {
-    const walletKeypair = anchor.web3.Keypair.generate();
-
-    const ownerAKeypair = await createAndFundUser();
-    const ownerBKeypair = anchor.web3.Keypair.generate();
-    const ownerCKeypair = anchor.web3.Keypair.generate();
-    const receiverKeypair = anchor.web3.Keypair.generate();
-
-    const owners = [
-      ownerAKeypair.publicKey,
-      ownerBKeypair.publicKey,
-      ownerCKeypair.publicKey,
-    ];
-    const threshold = new anchor.BN(2);
-
+  it.only("It should execute a transaction!", async () => {
     await program.methods
-      .createWallet(owners, threshold)
+      .initializeNewMultisigWallet(multisigPDA.multisigIdx, owners, threshold)
       .accounts({
-        wallet: walletKeypair.publicKey,
-      })
-      .signers([walletKeypair])
-      .preInstructions([
-        await program.account.wallet.createInstruction(
-          walletKeypair,
-          multisigSize
-        ),
-      ])
-      .rpc();
-
-    await fundAccount(walletKeypair.publicKey);
-
-    const previousWalletAccountState = await program.account.wallet.fetch(
-      walletKeypair.publicKey
-    );
-
-    const proposalId = previousWalletAccountState.proposalCounter.toString();
-    const amount = new anchor.BN(0.1 * LAMPORTS_PER_SOL);
-
-    const [transactionAccount] = await anchor.web3.PublicKey.findProgramAddress(
-      [
-        Buffer.from("transaction"),
-        walletKeypair.publicKey.toBuffer(),
-        Buffer.from(proposalId),
-      ],
-      program.programId
-    );
-
-    // propose transaction
-    await program.methods
-      .proposeTransaction(receiverKeypair.publicKey, amount)
-      .accounts({
-        wallet: walletKeypair.publicKey,
-        transaction: transactionAccount,
-        payer: program.provider.publicKey,
-        proposer: ownerAKeypair.publicKey,
+        multisigWalletAccount: multisigPDA.multisigWalletPubKey,
+        payer: ownerAKeypair.publicKey,
         systemProgram: anchor.web3.SystemProgram.programId,
+        rent: anchor.web3.SYSVAR_RENT_PUBKEY,
       })
       .signers([ownerAKeypair])
       .rpc();
 
-    // approve transaction
+    const { multiSigState: previousMultiSigState } = await readMultisigState();
+
+    const proposalCount = previousMultiSigState.proposalCounter;
+
+    const { transactionPubKey } = await getTransactionPDA(
+      multisigPDA.multisigWalletPubKey,
+      proposalCount
+    );
+
+    // propose transaction
+    await program.methods
+      .proposeTransaction(receiverPubKey, amount)
+      .accounts({
+        transactionAccount: transactionPubKey,
+        multisigWalletAccount: multisigPDA.multisigWalletPubKey,
+        proposer: ownerAKeypair.publicKey,
+        systemProgram: anchor.web3.SystemProgram.programId,
+        rent: anchor.web3.SYSVAR_RENT_PUBKEY,
+      })
+      .signers([ownerAKeypair])
+      .rpc();
+
     await program.methods
       .approveTransaction()
       .accounts({
-        wallet: walletKeypair.publicKey,
-        transaction: transactionAccount,
+        transactionAccount: transactionPubKey,
+        multisigWalletAccount: multisigPDA.multisigWalletPubKey,
         approver: ownerBKeypair.publicKey,
       })
       .signers([ownerBKeypair])
       .rpc();
 
-    const transactionAccountState = await program.account.transaction.fetch(
-      transactionAccount
-    );
+    await fundAccount(multisigPDA.multisigWalletPubKey);
+    const { multiSigInfo } = await readMultisigState();
+    console.log({ multiSigInfo });
 
-    const walletKeypairInfo =
-      await provider.connection.getAccountInfoAndContext(
-        walletKeypair.publicKey
-      );
-
-    const OwnerAAccountInfo =
-      await provider.connection.getAccountInfoAndContext(
-        walletKeypair.publicKey
-      );
-
-    console.log(walletKeypairInfo.value.owner.toString());
-    console.log(OwnerAAccountInfo.value.owner.toString());
-    console.log(program.programId.toString());
+    const {
+      transactionState: { to: recipientPubKey },
+    } = await readTransactionState(transactionPubKey);
 
     await program.methods
-      .executeTransaction()
+      .executeTransaction(multisigPDA.multisigBump)
       .accounts({
-        // wallet: walletKeypair.publicKey,
-        from: walletKeypair.publicKey,
-        // transaction: transactionAccount,
-        recipient: receiverKeypair.publicKey,
+        multisigWalletAccount: multisigPDA.multisigWalletPubKey,
+        transactionAccount: transactionPubKey,
+        recipient: recipientPubKey,
         systemProgram: anchor.web3.SystemProgram.programId,
       })
-      .signers([walletKeypair])
       .rpc();
 
-    // const transactionAccountState = await program.account.transaction.fetch(
-    //   transactionAccount
-    // );
-    // const walletAccountState = await program.account.wallet.fetch(
-    //   walletKeypair.publicKey
-    // );
-
-    // console.log("transAccountState :", transactionAccountState);
-
-    // expect(walletAccountState.proposalCounter.toString()).to.eql("1");
-    // expect(transactionAccountState.wallet).to.eql(walletKeypair.publicKey);
-    // expect(transactionAccountState.proposalId.toString).to.eql("0");
-    // expect(transactionAccountState.approvers).to.eql([true, false, false]);
-    // expect(transactionAccountState.didExecute).to.eql(false);
-    // expect(transactionAccountState.amount.toString()).to.eql(amount.toString());
+    // const { transactionState } = await readTransactionState(transactionPubKey);
+    // console.log({ transactionState });
   });
 });
