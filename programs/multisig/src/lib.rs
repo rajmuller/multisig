@@ -29,6 +29,7 @@ pub mod multisig {
 
         let multisig_wallet_account = &mut ctx.accounts.multisig_wallet_account;
         multisig_wallet_account.idx = wallet_idx;
+        // multisig_wallet_account.treasury_wallet = ctx.accounts.treasury_account.key();
         multisig_wallet_account.owners = owners;
         multisig_wallet_account.threshold = threshold;
         multisig_wallet_account.proposal_counter = 0;
@@ -84,36 +85,46 @@ pub mod multisig {
     }
 
     // Executes the given transaction if threshold owners have signed it.
-    pub fn execute_transaction(ctx: Context<ExecuteTransaction>, bump: u8) -> Result<()> {
-        let transfer_instruction = &transfer(
-            &ctx.accounts.multisig_wallet_account.to_account_info().key,
-            // maybe unsigned_key()
-            &ctx.accounts.recipient.to_account_info().key,
-            100_000_000,
-        );
+    pub fn execute_transaction(ctx: Context<ExecuteTransaction>) -> Result<()> {
+        // let transfer_instruction = &transfer(
+        //     &ctx.accounts.multisig_wallet_account.key(),
+        //     &ctx.accounts.recipient.key(),
+        //     100_000_000,
+        // );
 
-        // let gemworks_farm_treasury_bump = *ctx.bumps.get("gemworks_farm_treasury").unwrap();
-        let seeds = &[&[
-            b"multisig".as_ref(),
-            ctx.accounts
-                .multisig_wallet_account
-                .idx
-                .to_le_bytes()
-                .as_ref(),
-            &[bump],
-        ]];
-        let idx = ctx.accounts.multisig_wallet_account.idx.to_le_bytes();
-        let multisig_account_seeds = &[b"multisig".as_ref(), idx.as_ref(), &[bump]];
-        let multisig_account_signer_seeds = &[&multisig_account_seeds[..]];
+        // let multi_sig_bump = *ctx.bumps.get("multisig_wallet_account").unwrap();
+        // msg!(
+        //     "ctx.accounts.recipient.to_account_info() {:#?}",
+        //     ctx.accounts.recipient.to_account_info()
+        // );
+        // msg!(
+        //     "ctx.accounts.multisig_wallet_account.to_account_info() {:#?}",
+        //     ctx.accounts.multisig_wallet_account.to_account_info()
+        // );
 
-        invoke_signed(
-            transfer_instruction,
-            &[
-                ctx.accounts.multisig_wallet_account.to_account_info(),
-                ctx.accounts.recipient.to_account_info(),
-            ],
-            multisig_account_signer_seeds,
-        )?;
+        let wallet_info = ctx.accounts.multisig_wallet_account.to_account_info();
+        let recipient_info = ctx.accounts.recipient.to_account_info();
+
+        **recipient_info.try_borrow_mut_lamports()? =
+            recipient_info.lamports().checked_add(100_000_000).unwrap();
+        **wallet_info.try_borrow_mut_lamports()? =
+            wallet_info.lamports().checked_sub(100_000_000).unwrap();
+
+        // let multisig_account_seeds = &[b"multisig".as_ref(), &[multi_sig_bump]];
+        // let multisig_account_signer_seeds = &[&multisig_account_seeds[..]];
+        // msg!("multisig_account_seeds {:#?}", multisig_account_seeds);
+
+        // invoke_signed(
+        //     transfer_instruction,
+        //     &[
+        //         ctx.accounts
+        //             .multisig_wallet_account
+        //             .to_account_info()
+        //             .clone(),
+        //         ctx.accounts.recipient.to_account_info().clone(),
+        //     ],
+        //     multisig_account_signer_seeds,
+        // )?;
 
         Ok(())
     }
@@ -127,7 +138,7 @@ pub struct InitializeNewMultisigWallet<'info> {
         init,
         space = 1000,
         payer = payer,
-        seeds=[b"multisig".as_ref(), wallet_idx.to_le_bytes().as_ref()],
+        seeds=[b"multisig".as_ref()],
         bump,
     )]
     multisig_wallet_account: Account<'info, MultisigWalletState>,
@@ -135,9 +146,10 @@ pub struct InitializeNewMultisigWallet<'info> {
     //     init,
     //     space = 690,
     //     payer = payer,
-    //     seeds=[b"treasury".as_ref(), owners[0].as_ref(), owners[1].as_ref(), owners[2].as_ref(), wallet_idx.to_le_bytes().as_ref()],
+    //     seeds=[b"treasury".as_ref()],
     //     bump,
     // )]
+    // ///CHECK: asd
     // treasury_account: AccountInfo<'info>,
     #[account(mut)]
     payer: Signer<'info>,
@@ -155,8 +167,6 @@ pub struct ProposeTransaction<'info> {
         payer = proposer,
         seeds = [
             b"transaction".as_ref(),
-            multisig_wallet_account.key().as_ref(),
-            multisig_wallet_account.proposal_counter.to_le_bytes().as_ref(),
         ],
         bump,
     )]
@@ -164,7 +174,7 @@ pub struct ProposeTransaction<'info> {
 
     #[account(
         mut,
-        seeds=[b"multisig".as_ref(),multisig_wallet_account.idx.to_le_bytes().as_ref()],
+        seeds=[b"multisig".as_ref()],
         bump,
     )]
     multisig_wallet_account: Account<'info, MultisigWalletState>,
@@ -181,7 +191,7 @@ pub struct ProposeTransaction<'info> {
 pub struct ApproveTransaction<'info> {
     #[account(
         mut,
-        seeds=[b"multisig".as_ref(),multisig_wallet_account.idx.to_le_bytes().as_ref()],
+        seeds=[b"multisig".as_ref()],
         bump,
     )]
     multisig_wallet_account: Account<'info, MultisigWalletState>,
@@ -189,8 +199,6 @@ pub struct ApproveTransaction<'info> {
         mut,
         seeds = [
             b"transaction".as_ref(),
-            multisig_wallet_account.key().as_ref(),
-            transaction_account.proposal_id.to_le_bytes().as_ref(),
         ],
         bump,
     )]
@@ -205,7 +213,7 @@ pub struct ApproveTransaction<'info> {
 pub struct ExecuteTransaction<'info> {
     #[account(
         mut,
-        seeds=[b"multisig".as_ref(),multisig_wallet_account.idx.to_le_bytes().as_ref()],
+        seeds=[b"multisig".as_ref()],
         bump,
     )]
     multisig_wallet_account: Account<'info, MultisigWalletState>,
@@ -213,8 +221,6 @@ pub struct ExecuteTransaction<'info> {
         mut,
         seeds = [
             b"transaction".as_ref(),
-            multisig_wallet_account.key().as_ref(),
-            transaction_account.proposal_id.to_le_bytes().as_ref(),
         ],
         bump,
     )]
