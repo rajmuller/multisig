@@ -72,7 +72,7 @@ pub mod multisig {
     pub fn approve_transaction(ctx: Context<ApproveTransaction>) -> Result<()> {
         let owner_index = ctx
             .accounts
-            .wallet
+            .multisig_wallet_account
             .owners
             .iter()
             .position(|a| a == ctx.accounts.approver.key)
@@ -150,9 +150,6 @@ pub struct ProposeTransaction<'info> {
         mut,
         seeds=[b"multisig".as_ref(),multisig_wallet_account.idx.to_le_bytes().as_ref()],
         bump,
-        // has_one = user_sending,
-        // has_one = user_receiving,
-        // has_one = mint_of_token_being_sent,
     )]
     multisig_wallet_account: Account<'info, MultisigWalletState>,
     #[account(mut)]
@@ -166,10 +163,25 @@ pub struct ProposeTransaction<'info> {
 
 #[derive(Accounts)]
 pub struct ApproveTransaction<'info> {
-    wallet: Account<'info, MultisigWalletState>,
-    #[account(mut)]
+    #[account(
+        mut,
+        seeds=[b"multisig".as_ref(),multisig_wallet_account.idx.to_le_bytes().as_ref()],
+        bump,
+    )]
+    multisig_wallet_account: Account<'info, MultisigWalletState>,
+    #[account(
+        mut,
+        seeds = [
+            b"transaction".as_ref(),
+            multisig_wallet_account.key().as_ref(),
+            transaction_account.proposal_id.to_le_bytes().as_ref(),
+        ],
+        bump,
+    )]
     transaction_account: Account<'info, TransactionState>,
+
     // One of the wallet owners. Checked in the handler.
+    #[account(mut)]
     approver: Signer<'info>,
 }
 
