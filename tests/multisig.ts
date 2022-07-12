@@ -115,7 +115,7 @@ describe("multisig", () => {
     const walletKeypair = anchor.web3.Keypair.generate();
     const multisigSize = 200; // Big enough.
 
-    const ownerAKeypair = anchor.web3.Keypair.generate();
+    const ownerAKeypair = await createAndFundUser();
     const ownerBKeypair = anchor.web3.Keypair.generate();
     const ownerCKeypair = anchor.web3.Keypair.generate();
     const receiverKeypair = anchor.web3.Keypair.generate();
@@ -294,6 +294,8 @@ describe("multisig", () => {
       ])
       .rpc();
 
+    await fundAccount(walletKeypair.publicKey);
+
     const previousWalletAccountState = await program.account.wallet.fetch(
       walletKeypair.publicKey
     );
@@ -334,51 +336,34 @@ describe("multisig", () => {
       .signers([ownerBKeypair])
       .rpc();
 
-    const [walletAccount] = await anchor.web3.PublicKey.findProgramAddress(
-      [walletKeypair.publicKey.toBuffer()],
-      program.programId
-    );
-
-    await fundAccount(walletAccount);
-
     const transactionAccountState = await program.account.transaction.fetch(
       transactionAccount
     );
 
-    // const walletKeypairBalance = await program.provider.connection.getBalance(
-    //   walletKeypair.publicKey
-    // );
+    const walletKeypairInfo =
+      await provider.connection.getAccountInfoAndContext(
+        walletKeypair.publicKey
+      );
 
-    // const walletAccountBalance = await program.provider.connection.getBalance(
-    //   walletAccount
-    // );
+    const OwnerAAccountInfo =
+      await provider.connection.getAccountInfoAndContext(
+        walletKeypair.publicKey
+      );
 
-    // console.log("walletKeypairBalance: ", walletKeypairBalance);
-    // console.log("walletAccountBalance: ", walletAccountBalance);
-    // const remainingAccounts: anchor.web3.AccountInfo[] = {walletKeypair.publicKey}
-
-    const ownerAAccountInfo = await provider.connection.getAccountInfo(
-      ownerAKeypair.publicKey
-    );
-
-    console.log({ ownerAAccountInfo });
-
-    const ownerAMeta: anchor.web3.AccountMeta = {
-      isSigner: true,
-      isWritable: true,
-      pubkey: ownerAKeypair.publicKey,
-    };
+    console.log(walletKeypairInfo.value.owner.toString());
+    console.log(OwnerAAccountInfo.value.owner.toString());
+    console.log(program.programId.toString());
 
     await program.methods
       .executeTransaction()
       .accounts({
         // wallet: walletKeypair.publicKey,
-        from: ownerAKeypair.publicKey,
+        from: walletKeypair.publicKey,
         // transaction: transactionAccount,
-        to: receiverKeypair.publicKey,
+        recipient: receiverKeypair.publicKey,
         systemProgram: anchor.web3.SystemProgram.programId,
       })
-      .signers([ownerAKeypair])
+      .signers([walletKeypair])
       .rpc();
 
     // const transactionAccountState = await program.account.transaction.fetch(

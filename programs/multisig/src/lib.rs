@@ -1,4 +1,7 @@
 use anchor_lang::prelude::*;
+use anchor_lang::solana_program::program::invoke;
+use anchor_lang::solana_program::system_instruction::transfer;
+use anchor_lang::solana_program::system_program;
 
 // linux
 declare_id!("8XHSyugWk2uYagCREiD2fSRkgGcTPYvwipXgd9c7em2i");
@@ -7,9 +10,6 @@ declare_id!("8XHSyugWk2uYagCREiD2fSRkgGcTPYvwipXgd9c7em2i");
 
 #[program]
 pub mod multisig {
-
-    use anchor_lang::solana_program::program::invoke;
-    use anchor_lang::solana_program::system_instruction::transfer;
 
     use super::*;
 
@@ -83,43 +83,19 @@ pub mod multisig {
 
     // Executes the given transaction if threshold owners have signed it.
     pub fn execute_transaction(ctx: Context<ExecuteTransaction>) -> Result<()> {
-        // Has this been executed already?
-        // if ctx.accounts.transaction.did_execute {
-        //     return Err(MultiSigError::AlreadyExecuted.into());
-        // }
-
-        // // Do we have enough signers.
-        // let sig_count = ctx
-        //     .accounts
-        //     .transaction
-        //     .approvers
-        //     .iter()
-        //     .filter(|&did_sign| *did_sign)
-        //     .count() as u64;
-        // if sig_count < ctx.accounts.wallet.threshold {
-        //     return Err(MultiSigError::NotEnoughSigners.into());
-        // }
-
-        let from_obj = &mut ctx.accounts.from;
-        let to_obj = &mut ctx.accounts.to;
-
-        let ix = &transfer(
-            &from_obj.to_account_info().unsigned_key(),
-            &to_obj.to_account_info().key,
+        let transfer_instruction = &transfer(
+            &ctx.accounts.from.to_account_info().key,
+            &ctx.accounts.recipient.to_account_info().key,
             100_000_000,
         );
 
         invoke(
-            &ix,
+            transfer_instruction,
             &[
-                from_obj.to_account_info(),
-                to_obj.to_account_info(),
-                ctx.accounts.system_program.to_account_info(),
+                ctx.accounts.from.to_account_info(),
+                ctx.accounts.recipient.to_account_info(),
             ],
         )?;
-
-        // Burn the transaction to ensure one time use.
-        // ctx.accounts.transaction.did_execute = true;
 
         Ok(())
     }
@@ -166,14 +142,12 @@ pub struct ApproveTransaction<'info> {
 
 #[derive(Accounts)]
 pub struct ExecuteTransaction<'info> {
-    // #[account(mut)]
-    // wallet: Account<'info, Wallet>,
-    // #[account(mut)]
-    // transaction: Account<'info, Transaction>,
     #[account(mut)]
     from: Signer<'info>,
-    /// CHECK: This is not dangerous because we don't read or write from this account
-    to: AccountInfo<'info>,
+    #[account(mut)]
+    /// CHECK: we only send lamport to this account
+    pub recipient: AccountInfo<'info>,
+    #[account(address = system_program::ID)]
     system_program: Program<'info, System>,
 }
 
@@ -182,6 +156,8 @@ pub struct Wallet {
     pub owners: Vec<Pubkey>,
     pub threshold: u64,
     pub proposal_counter: u64,
+    // The treasury wallet
+    treasury_wallet: Pubkey,
 }
 
 #[account]
