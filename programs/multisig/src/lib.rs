@@ -14,7 +14,7 @@ pub mod multisig {
     use super::*;
 
     // init new multisig wallet wallet with set of owners and threshold
-    pub fn create_wallet(
+    pub fn initialize_new_multisig_wallet(
         ctx: Context<InitializeNewMultisigWallet>,
         owners: Vec<Pubkey>,
         threshold: u64,
@@ -107,7 +107,7 @@ pub struct InitializeNewMultisigWallet<'info> {
     // PDAs
     #[account(
         init,
-        space = 690,
+        space = 1000,
         payer = payer,
         seeds=[b"multisig".as_ref(), owners[0].as_ref(), owners[1].as_ref(), owners[2].as_ref(), wallet_idx.to_le_bytes().as_ref()],
         bump,
@@ -141,7 +141,7 @@ pub struct ProposeTransaction<'info> {
             multisig_wallet_account.proposal_counter.to_string().as_ref(),
         ],
         bump,
-        payer = payer,
+        payer = proposer,
         space = 1000
     )]
     transaction: Account<'info, Transaction>,
@@ -149,8 +149,6 @@ pub struct ProposeTransaction<'info> {
     // One of the owners. Checked in the handler.
     #[account(mut)]
     proposer: Signer<'info>,
-    #[account(mut)]
-    payer: Signer<'info>,
 }
 
 #[derive(Accounts)]

@@ -4,7 +4,7 @@ import { expect } from "chai";
 import { LAMPORTS_PER_SOL } from "@solana/web3.js";
 import { Multisig } from "../target/types/multisig";
 
-type MultisigWallet = {
+type MultisigPDA = {
   multisigIdx: anchor.BN;
   multisigWalletPubKey: anchor.web3.PublicKey;
   multisigBump: number;
@@ -18,7 +18,7 @@ describe("multisig", () => {
   const program = anchor.workspace.Multisig as Program<Multisig>;
   const MultiSigError = program.idl.errors as Multisig["errors"];
 
-  const multisigSize = 690; // Big enough.
+  const space = 1000; // Big enough.
   const threshold = new anchor.BN(2);
 
   let ownerAKeypair: anchor.web3.Keypair;
@@ -26,7 +26,7 @@ describe("multisig", () => {
   let ownerCKeypair: anchor.web3.Keypair;
   let receiverPubKey: anchor.web3.PublicKey;
 
-  let multisig: MultisigWallet;
+  let multisigPDA: MultisigPDA;
 
   let owners: anchor.web3.PublicKey[];
 
@@ -102,7 +102,7 @@ describe("multisig", () => {
       ownerCKeypair.publicKey,
     ];
 
-    multisig = await getMultisigPDA(
+    multisigPDA = await getMultisigPDA(
       ownerAKeypair.publicKey,
       ownerBKeypair.publicKey,
       ownerCKeypair.publicKey
@@ -450,27 +450,33 @@ describe("multisig", () => {
   });
 
   it.only("It should initialize and send transaction successfully!", async () => {
-    wa;
-    await program.methods
-      .createWallet(owners, threshold)
-      .accounts({
-        wallet: walletKeypair.publicKey,
-      })
-      .signers([walletKeypair])
-      .preInstructions([
-        await program.account.wallet.createInstruction(
-          walletKeypair,
-          multisigSize
-        ),
-      ])
-      .rpc();
-
-    const multiSigState = await program.account.wallet.fetch(
-      walletKeypair.publicKey
+    console.log("owners :", owners);
+    console.log("threshold.toString() :", threshold.toString());
+    console.log("multisigPDA :", multisigPDA);
+    console.log(
+      "ownerAKeypair.publicKey :",
+      ownerAKeypair.publicKey.toString()
     );
 
-    expect(multiSigState.owners).to.eql(owners);
-    expect(multiSigState.proposalCounter.toString()).to.eql("0");
-    expect(multiSigState.threshold.toString()).to.eql(threshold.toString());
+    await program.methods
+      .initializeNewMultisigWallet(owners, threshold)
+      .accounts({
+        multisigWalletAccount: multisigPDA.multisigWalletPubKey,
+        payer: ownerAKeypair.publicKey,
+        systemProgram: anchor.web3.SystemProgram.programId,
+        rent: anchor.web3.SYSVAR_RENT_PUBKEY,
+      })
+      .signers([ownerAKeypair])
+      // .preInstructions([
+      //   await program.account.multisigWalletState.createInstruction(
+      //     ownerAKeypair,
+      //     multisigSize
+      //   ),
+      // ])
+      .rpc();
+
+    // expect(multiSigState.owners).to.eql(owners);
+    // expect(multiSigState.proposalCounter.toString()).to.eql("0");
+    // expect(multiSigState.threshold.toString()).to.eql(threshold.toString());
   });
 });
