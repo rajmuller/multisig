@@ -42,9 +42,9 @@ describe("multisig", () => {
       await anchor.web3.PublicKey.findProgramAddress(
         [
           Buffer.from("multisig"),
-          ownerAPubKey.toBuffer(),
-          ownerBPubKey.toBuffer(),
-          ownerCPubKey.toBuffer(),
+          // ownerAPubKey.toBuffer(),
+          // ownerBPubKey.toBuffer(),
+          // ownerCPubKey.toBuffer(),
           uidBuffer,
         ],
         program.programId
@@ -459,7 +459,7 @@ describe("multisig", () => {
     );
 
     await program.methods
-      .initializeNewMultisigWallet(owners, threshold)
+      .initializeNewMultisigWallet(multisigPDA.multisigIdx, owners, threshold)
       .accounts({
         multisigWalletAccount: multisigPDA.multisigWalletPubKey,
         payer: ownerAKeypair.publicKey,

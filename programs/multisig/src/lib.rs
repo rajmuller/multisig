@@ -16,6 +16,7 @@ pub mod multisig {
     // init new multisig wallet wallet with set of owners and threshold
     pub fn initialize_new_multisig_wallet(
         ctx: Context<InitializeNewMultisigWallet>,
+        wallet_idx: u64,
         owners: Vec<Pubkey>,
         threshold: u64,
     ) -> Result<()> {
@@ -27,6 +28,7 @@ pub mod multisig {
         require!(!owners.is_empty(), MultiSigError::InvalidOwnersLen);
 
         let multisig_wallet_account = &mut ctx.accounts.multisig_wallet_account;
+        multisig_wallet_account.idx = wallet_idx;
         multisig_wallet_account.owners = owners;
         multisig_wallet_account.threshold = threshold;
         multisig_wallet_account.proposal_counter = 0;
@@ -109,7 +111,7 @@ pub struct InitializeNewMultisigWallet<'info> {
         init,
         space = 1000,
         payer = payer,
-        seeds=[b"multisig".as_ref(), owners[0].as_ref(), owners[1].as_ref(), owners[2].as_ref(), wallet_idx.to_le_bytes().as_ref()],
+        seeds=[b"multisig".as_ref(), wallet_idx.to_le_bytes().as_ref()],
         bump,
     )]
     multisig_wallet_account: Account<'info, MultisigWalletState>,
@@ -174,6 +176,7 @@ pub struct ExecuteTransaction<'info> {
 // 1 MultisigWalletState instance == 1 Multiisig Wallet instance
 #[account]
 pub struct MultisigWalletState {
+    pub idx: u64,
     pub owners: Vec<Pubkey>,
     pub threshold: u64,
     pub proposal_counter: u64,
