@@ -1,6 +1,6 @@
-import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 import Image from "next/image";
+import Link from "next/link";
 import { ReactNode, useCallback } from "react";
 
 type LayoutProps = {
@@ -10,9 +10,6 @@ type LayoutProps = {
 const HEADER_HEIGHT = "72px";
 
 const Header = () => {
-  const useconnection = useConnection();
-  const useWalleta = useWallet();
-
   return (
     <>
       <header
@@ -22,9 +19,28 @@ const Header = () => {
         }}
       >
         <Image width={60} height={60} src="/miros.webp" alt="Miros" />
-        <div>
-          <WalletMultiButton />
-        </div>
+        <nav>
+          <ul className="flex items-center justify-center gap-8 font-semibold">
+            <li className="hover:text-violet-300 active:text-violet-500">
+              <Link href="/">
+                <a className="p-4">Create</a>
+              </Link>
+            </li>
+            <li className="hover:text-violet-300 active:text-violet-500">
+              <Link href="/wallets">
+                <a className="p-4">Wallets</a>
+              </Link>
+            </li>
+            <li className="hover:text-violet-300 active:text-violet-500">
+              <Link href="/transactions">
+                <a className="p-4">Transactions</a>
+              </Link>
+            </li>
+            <li className="p-4 pr-0">
+              <WalletMultiButton />
+            </li>
+          </ul>
+        </nav>
       </header>
       <div className="h-px w-screen bg-violet-900" />
     </>
