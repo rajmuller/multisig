@@ -1,3 +1,5 @@
+import { useConnection, useWallet } from "@solana/wallet-adapter-react";
+import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 import { ReactNode, useCallback } from "react";
 
 type LayoutProps = {
@@ -7,13 +9,10 @@ type LayoutProps = {
 const HEADER_HEIGHT = "72px";
 
 const Header = () => {
-  const { isAuthenticated, authenticate, logout } = useMoralis();
+  const { connection } = useConnection();
+  const { connected } = useWallet();
 
-  const onSignin = useCallback(async () => {
-    authenticate({ type: "sol" });
-  }, [authenticate]);
-
-  console.log({ isAuthenticated });
+  console.log({ connected });
 
   return (
     <header
@@ -24,12 +23,7 @@ const Header = () => {
     >
       <div>LOGO</div>
       <div>
-        <button
-          onClick={isAuthenticated ? logout : onSignin}
-          className="rounded bg-violet-500 px-3 py-3 font-semibold"
-        >
-          {isAuthenticated ? "Log out" : "Sign in with Phantom"}
-        </button>
+        <WalletMultiButton />
       </div>
     </header>
   );
