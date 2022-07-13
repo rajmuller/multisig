@@ -99,7 +99,7 @@ const Home: NextPage = () => {
           onClick={onInitMultisigWallet}
           className="h-full rounded bg-violet-500 px-3 py-1.5 font-medium hover:bg-violet-600 active:bg-violet-700"
         >
-          InitMultisig
+          Initialize Multisig Wallet
         </button>
       </div>
     </div>

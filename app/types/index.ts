@@ -1,4 +1,5 @@
 import * as anchor from "@project-serum/anchor";
+import { Program } from "@project-serum/anchor";
 
 export type Multisig = {
   version: "0.1.0";
@@ -469,13 +470,9 @@ export const IDL: Multisig = {
 };
 
 export type PDA = {
-  multisigIdx: anchor.BN;
-  multisigWalletPubKey: anchor.web3.PublicKey;
-  multisigBump: number;
-
-  transactionIdx: anchor.BN;
-  transactionPubKey: anchor.web3.PublicKey;
-  transactionBump: number;
+  Idx: anchor.BN;
+  pubKey: anchor.web3.PublicKey;
+  bump: number;
 };
 
 export type ArrElement<ArrType> = ArrType extends readonly (infer ElementType)[]

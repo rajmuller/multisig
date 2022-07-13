@@ -1,5 +1,6 @@
 import { AnchorProvider, BN, Program, web3 } from "@project-serum/anchor";
 import { useAnchorWallet, useConnection } from "@solana/wallet-adapter-react";
+import { LAMPORTS_PER_SOL } from "@solana/web3.js";
 import { useCallback, useEffect, useState } from "react";
 import { Multisig, PDA } from "types";
 import idl from "types/multisig.json";
@@ -11,7 +12,7 @@ const programId = new web3.PublicKey(
 const a = JSON.stringify(idl);
 const multiSigIdl = JSON.parse(a);
 
-const generatePDA = async (): Promise<PDA> => {
+const getMultisigPDA = async (): Promise<PDA> => {
   const uid = new BN(parseInt((Date.now() / 1000).toString()));
   // const uidBuffer = uid.toBuffer("le", 8);
   // const uidBuffer = Buffer.from(uid, "base64url");
@@ -22,8 +23,39 @@ const generatePDA = async (): Promise<PDA> => {
       programId
     );
 
-  const proposalCount = new BN(0);
-  // const proposalCountBuffer = proposalCount.toBuffer("le", 8);
+  return {
+    Idx: uid,
+    pubKey: multisigWalletPubKey,
+    bump: multisigBump,
+  };
+};
+
+export const useBalance = (keyString?: string) => {
+  const [balance, setBalance] = useState("");
+  const { connection } = useConnection();
+
+  const fetchBalance = useCallback(
+    async (pubKey: web3.PublicKey) => {
+      const _balance = await connection.getBalance(new web3.PublicKey(pubKey!));
+
+      setBalance((_balance / LAMPORTS_PER_SOL).toString());
+    },
+    [connection]
+  );
+
+  useEffect(() => {
+    if (!balance && keyString) {
+      fetchBalance(new web3.PublicKey(keyString));
+    }
+  }, [balance, fetchBalance, keyString]);
+
+  return balance;
+};
+
+const getTransactionPDA = async (
+  multisigWalletPubKey: web3.PublicKey,
+  proposalCount: BN
+): Promise<PDA> => {
   const proposalCountBuffer = proposalCount.toArrayLike(Buffer, "le", 8);
   const [transactionPubKey, transactionBump] =
     await web3.PublicKey.findProgramAddress(
@@ -36,45 +68,9 @@ const generatePDA = async (): Promise<PDA> => {
     );
 
   return {
-    multisigIdx: uid,
-    multisigWalletPubKey,
-    multisigBump,
-
-    transactionIdx: proposalCount,
-    transactionPubKey,
-    transactionBump,
-  };
-};
-
-const getPDA = async (): Promise<PDA> => {
-  const uid = new BN(parseInt((Date.now() / 1000).toString()));
-  const uidBuffer = uid.toBuffer("le", 8);
-  const [multisigWalletPubKey, multisigBump] =
-    await web3.PublicKey.findProgramAddress(
-      [Buffer.from("multisig"), uidBuffer],
-      programId
-    );
-
-  const proposalCount = new BN(0);
-  const proposalCountBuffer = proposalCount.toBuffer("le", 8);
-  const [transactionPubKey, transactionBump] =
-    await web3.PublicKey.findProgramAddress(
-      [
-        Buffer.from("transaction"),
-        multisigWalletPubKey.toBuffer(),
-        proposalCountBuffer,
-      ],
-      programId
-    );
-
-  return {
-    multisigIdx: uid,
-    multisigWalletPubKey,
-    multisigBump,
-
-    transactionIdx: proposalCount,
-    transactionPubKey,
-    transactionBump,
+    Idx: proposalCount,
+    pubKey: transactionPubKey,
+    bump: transactionBump,
   };
 };
 
@@ -101,25 +97,27 @@ export const useProgram = () => {
 
 export const useFetchMultisigWallets = (filter?: string) => {
   const program = useProgram();
-  const fetchWalletState = program!.account.multisigWalletState.all;
-  type FetchWalletState = Awaited<ReturnType<typeof fetchWalletState>>;
 
-  const [wallets, setWallets] = useState<FetchWalletState>();
+  const [wallets, setWallets] = useState<any[] | any>();
 
   const fetchWallets = useCallback(async () => {
     const _wallets = await program?.account.multisigWalletState.all();
     if (filter) {
-      _wallets?.filter((wallet) => wallet.publicKey.toString() == filter);
-      setWallets(_wallets);
+      const wallet = _wallets?.find(
+        (wallet) => wallet.publicKey.toString() == filter
+      );
+      setWallets(wallet as any);
     } else {
-      setWallets(_wallets);
+      setWallets(_wallets as any);
     }
   }, [filter, program?.account.multisigWalletState]);
 
   useEffect(() => {
-    if (!wallets) {
-      fetchWallets();
+    if (wallets) {
+      return;
     }
+
+    fetchWallets();
   }, [fetchWallets, wallets]);
 
   return wallets;
@@ -127,22 +125,21 @@ export const useFetchMultisigWallets = (filter?: string) => {
 
 export const useFetchTransactions = () => {
   const program = useProgram();
-  const fetchTransactionState = program!.account.transactionState.all;
-  type FetchTransactionState = Awaited<
-    ReturnType<typeof fetchTransactionState>
-  >;
 
-  const [transactions, setTransactions] = useState<FetchTransactionState>();
+  const [transactions, setTransactions] = useState<any[]>();
 
   const fetchTransactions = useCallback(async () => {
     const _transactions = await program?.account.transactionState.all();
-    setTransactions(_transactions);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    setTransactions(_transactions as any);
+  }, [program?.account.transactionState]);
 
   useEffect(() => {
+    if (transactions) {
+      return;
+    }
+
     fetchTransactions();
-  }, [fetchTransactions]);
+  }, [fetchTransactions, transactions]);
 
   return transactions;
 };
@@ -157,12 +154,11 @@ export const useInitMultisigWallet = (
   const program = useProgram();
 
   const onInitMultisigWallet = useCallback(async () => {
-    const pda = await generatePDA();
-    console.log({ pda });
-
     if (!program || !ownerA || !ownerB || !ownerC || !threshold) {
       return;
     }
+
+    const multisigPDA = await getMultisigPDA();
 
     const ownerAPubKey = new web3.PublicKey(ownerA);
     const ownerBPubKey = new web3.PublicKey(ownerB);
@@ -171,12 +167,12 @@ export const useInitMultisigWallet = (
 
     const tx = await program.methods
       .initializeNewMultisigWallet(
-        pda.multisigIdx,
+        multisigPDA.Idx,
         [ownerAPubKey, ownerBPubKey, ownerCPubKey],
         thresholdBn
       )
       .accounts({
-        multisigWalletAccount: pda.multisigWalletPubKey,
+        multisigWalletAccount: multisigPDA.pubKey,
         payer: program.provider.publicKey,
         systemProgram: web3.SystemProgram.programId,
         rent: web3.SYSVAR_RENT_PUBKEY,
@@ -191,6 +187,60 @@ export const useInitMultisigWallet = (
 
   return {
     onInitMultisigWallet,
+    receipt,
+  };
+};
+
+export const useProposeTransaction = (
+  to?: string,
+  amount?: string,
+  multisigWalletKeyString?: string,
+  proposalCount?: string
+) => {
+  const [receipt, setReceipt] = useState<web3.TransactionResponse | null>();
+  const program = useProgram();
+
+  const onProposeTransaction = useCallback(async () => {
+    if (
+      !program ||
+      !to ||
+      !amount ||
+      !multisigWalletKeyString ||
+      !proposalCount
+    ) {
+      return;
+    }
+
+    const multisigWalletPubKey = new web3.PublicKey(multisigWalletKeyString);
+    const proposalCountBn = new BN(proposalCount);
+
+    const transactionPDA = await getTransactionPDA(
+      multisigWalletPubKey,
+      proposalCountBn
+    );
+
+    const recipientPubKey = new web3.PublicKey(to);
+    const amountInSol = new BN(parseFloat(amount) * LAMPORTS_PER_SOL);
+
+    const tx = await program.methods
+      .proposeTransaction(recipientPubKey, amountInSol)
+      .accounts({
+        multisigWalletAccount: multisigWalletPubKey,
+        transactionAccount: transactionPDA.pubKey,
+        proposer: program.provider.publicKey,
+        systemProgram: web3.SystemProgram.programId,
+        rent: web3.SYSVAR_RENT_PUBKEY,
+      })
+      .rpc();
+
+    const receipt = await program.provider.connection.getTransaction(tx, {
+      commitment: "confirmed",
+    });
+    setReceipt(receipt);
+  }, [amount, multisigWalletKeyString, program, proposalCount, to]);
+
+  return {
+    onProposeTransaction,
     receipt,
   };
 };

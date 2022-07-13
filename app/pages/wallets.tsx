@@ -2,21 +2,16 @@ import { useFetchMultisigWallets } from "hooks";
 import type { NextPage } from "next";
 import { useRouter } from "next/router";
 import { useCallback } from "react";
-import { ArrElement } from "types";
-
-type WalletType = ArrElement<ReturnType<typeof useFetchMultisigWallets>>;
 
 type WalletProps = {
-  wallet: WalletType;
+  wallet: any;
 };
 
 const Wallet = ({ wallet }: WalletProps) => {
   const router = useRouter();
-  const walletPubKeyString = wallet.publicKey.toString();
+  const walletPubKeyString = wallet?.publicKey?.toString();
 
   const onNavigate = useCallback(() => {
-    console.log({ walletPubKeyString });
-
     if (!walletPubKeyString) {
       return;
     }
@@ -27,7 +22,6 @@ const Wallet = ({ wallet }: WalletProps) => {
     });
   }, [router, walletPubKeyString]);
 
-  console.log(wallet);
   return (
     <div
       onClick={onNavigate}
@@ -39,25 +33,27 @@ const Wallet = ({ wallet }: WalletProps) => {
           {walletPubKeyString}
         </p>
       </div>
-      {wallet.account.owners.map((owner: any, i: any) => (
+      {wallet?.account?.owners?.map((owner: any, i: any) => (
         <div
           className="w-full overflow-hidden truncate text-lg"
-          key={owner.toString()}
+          key={owner?.toString()}
         >
-          <p>Owner {i}:</p>
-          <p className="truncate text-sm text-violet-200">{owner.toString()}</p>
+          <p>Owner {i + 1}:</p>
+          <p className="truncate text-sm text-violet-200">
+            {owner?.toString()}
+          </p>
         </div>
       ))}
       <div>
         <p className="text-lg">Proposal Count: </p>
         <p className="truncate text-sm text-violet-200">
-          {wallet.account.proposalCounter.toString()}
+          {wallet?.account?.proposalCounter?.toString()}
         </p>
       </div>
       <div>
         <p className="text-lg">Threshold:: </p>
         <p className="truncate text-sm text-violet-200">
-          {wallet.account.threshold.toString()}
+          {wallet?.account?.threshold?.toString()}
         </p>
       </div>
     </div>
@@ -83,8 +79,8 @@ const Wallets: NextPage = () => {
     <div className="px flex h-full w-full flex-col items-center gap-8 px-8">
       <p className="my-20 text-7xl">Wallets</p>
       <div className="grid w-full grid-cols-4">
-        {wallets.map((wallet) => (
-          <Wallet key={wallet.publicKey.toString()} wallet={wallet} />
+        {wallets?.map((wallet) => (
+          <Wallet key={wallet?.publicKey?.toString()} wallet={wallet} />
         ))}
       </div>
     </div>

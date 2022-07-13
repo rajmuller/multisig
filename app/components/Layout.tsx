@@ -11,12 +11,13 @@ const HEADER_HEIGHT = "72px";
 
 const Header = () => {
   return (
-    <>
-      <header
+    <header
+      style={{
+        height: HEADER_HEIGHT,
+      }}
+    >
+      <div
         className={`mx-auto flex w-full max-w-7xl items-center justify-between px-8`}
-        style={{
-          height: HEADER_HEIGHT,
-        }}
       >
         <Image width={60} height={60} src="/miros.webp" alt="Miros" />
         <nav>
@@ -36,20 +37,20 @@ const Header = () => {
             </li>
           </ul>
         </nav>
-      </header>
+      </div>
       <div className="h-px w-screen bg-violet-900" />
-    </>
+    </header>
   );
 };
 
 const Layout = ({ children }: LayoutProps) => {
   return (
-    <div className="flex h-screen w-screen flex-col items-center bg-gradient-to-br from-[#21103a] to-[#0b0318] text-center text-white">
+    <div className="flex w-screen flex-col items-center bg-gradient-to-br from-[#21103a] to-[#0b0318] text-center text-white">
       <Header />
       <main
         className="w-full max-w-7xl"
         style={{
-          height: `calc(100vh - ${HEADER_HEIGHT}`,
+          minHeight: `calc(100vh - ${HEADER_HEIGHT})`,
         }}
       >
         {children}
