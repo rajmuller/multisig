@@ -79,7 +79,7 @@ const Wallets: NextPage = () => {
     <div className="px flex h-full w-full flex-col items-center gap-8 px-8">
       <p className="my-20 text-7xl">Wallets</p>
       <div className="grid w-full grid-cols-4">
-        {wallets?.map((wallet) => (
+        {wallets?.map((wallet: any) => (
           <Wallet key={wallet?.publicKey?.toString()} wallet={wallet} />
         ))}
       </div>

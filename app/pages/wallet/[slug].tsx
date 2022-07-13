@@ -1,6 +1,8 @@
 import { LAMPORTS_PER_SOL } from "@solana/web3.js";
 import {
+  useApproveTransaction,
   useBalance,
+  useExecuteTransaction,
   useFetchMultisigWallets,
   useFetchTransactions,
   useProposeTransaction,
@@ -18,6 +20,17 @@ const Transaction = ({ transaction, threshold }: TransactionProps) => {
   const approverCount = transaction?.account?.approvers?.filter(
     (approver: boolean) => approver
   ).length;
+  const { query } = useRouter();
+
+  const { onApproveTransaction } = useApproveTransaction(
+    query?.slug as string,
+    transaction?.publicKey?.toString()
+  );
+  const { onExecuteTransaction } = useExecuteTransaction(
+    query?.slug as string,
+    transaction?.publicKey?.toString(),
+    transaction?.account?.to?.toString()
+  );
 
   const canExecute = threshold && approverCount >= threshold;
 
@@ -32,7 +45,11 @@ const Transaction = ({ transaction, threshold }: TransactionProps) => {
       </div>
       <div>
         <p className="text-lg">Can be Executed: </p>
-        <p className="truncate text-xl text-violet-200">
+        <p
+          className={`truncate text-xl ${
+            canExecute ? "text-emerald-500" : "text-red-500"
+          }`}
+        >
           {canExecute ? "Yes" : "No"}
         </p>
       </div>
@@ -63,8 +80,13 @@ const Transaction = ({ transaction, threshold }: TransactionProps) => {
         </div>
       ))}
       <button
-        // onClick={canExecute ? onExecute : onApprove}
-        className="rounded bg-violet-500 px-3 py-1.5 font-medium hover:bg-violet-600 active:bg-violet-700"
+        disabled={transaction?.account?.didExecute}
+        onClick={canExecute ? onExecuteTransaction : onApproveTransaction}
+        className={`rounded ${
+          transaction?.account?.didExecute
+            ? "cursor-not-allowed bg-gray-700"
+            : "bg-violet-500 hover:bg-violet-600 active:bg-violet-700"
+        } px-3 py-1.5 font-medium`}
       >
         {canExecute ? "Execute" : "Approve"}
       </button>
@@ -84,7 +106,7 @@ const ProposeTransaction = ({
   const [recipient, setRecipient] = useState("");
   const [amount, setAmount] = useState("");
 
-  const { onProposeTransaction, receipt } = useProposeTransaction(
+  const { onProposeTransaction } = useProposeTransaction(
     recipient,
     amount,
     multisigKeyString,

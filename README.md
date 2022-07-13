@@ -13,3 +13,5 @@
 - notification on contract transactions
 - design
 - input validation
+- approve transaction not checking if the approver has already approved
+- state update after transaction goes throug, should be very easy with react query

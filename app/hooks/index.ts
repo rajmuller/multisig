@@ -244,3 +244,83 @@ export const useProposeTransaction = (
     receipt,
   };
 };
+
+export const useApproveTransaction = (
+  multisigWalletKeyString: string | undefined,
+  proposalKeyString: string | undefined
+) => {
+  const [receipt, setReceipt] = useState<web3.TransactionResponse | null>();
+  const program = useProgram();
+
+  const onApproveTransaction = useCallback(async () => {
+    if (!program || !multisigWalletKeyString || !proposalKeyString) {
+      return;
+    }
+
+    const multisigWalletPubKey = new web3.PublicKey(multisigWalletKeyString);
+    const transactionPubKey = new web3.PublicKey(proposalKeyString);
+
+    const tx = await program.methods
+      .approveTransaction()
+      .accounts({
+        multisigWalletAccount: multisigWalletPubKey,
+        transactionAccount: transactionPubKey,
+        approver: program.provider.publicKey,
+      })
+      .rpc();
+
+    const receipt = await program.provider.connection.getTransaction(tx, {
+      commitment: "confirmed",
+    });
+    setReceipt(receipt);
+  }, [multisigWalletKeyString, program, proposalKeyString]);
+
+  return {
+    onApproveTransaction,
+    receipt,
+  };
+};
+
+export const useExecuteTransaction = (
+  multisigWalletKeyString: string | undefined,
+  proposalKeyString: string | undefined,
+  recipientKeyString: string | undefined
+) => {
+  const [receipt, setReceipt] = useState<web3.TransactionResponse | null>();
+  const program = useProgram();
+
+  const onExecuteTransaction = useCallback(async () => {
+    if (
+      !program ||
+      !multisigWalletKeyString ||
+      !proposalKeyString ||
+      !recipientKeyString
+    ) {
+      return;
+    }
+
+    const multisigWalletPubKey = new web3.PublicKey(multisigWalletKeyString);
+    const transactionPubKey = new web3.PublicKey(proposalKeyString);
+    const recipientPubKey = new web3.PublicKey(recipientKeyString);
+
+    const tx = await program.methods
+      .executeTransaction()
+      .accounts({
+        multisigWalletAccount: multisigWalletPubKey,
+        recipient: recipientPubKey,
+        systemProgram: web3.SystemProgram.programId,
+        transactionAccount: transactionPubKey,
+      })
+      .rpc();
+
+    const receipt = await program.provider.connection.getTransaction(tx, {
+      commitment: "confirmed",
+    });
+    setReceipt(receipt);
+  }, [multisigWalletKeyString, program, proposalKeyString, recipientKeyString]);
+
+  return {
+    onExecuteTransaction,
+    receipt,
+  };
+};
