@@ -477,3 +477,7 @@ export type PDA = {
   transactionPubKey: anchor.web3.PublicKey;
   transactionBump: number;
 };
+
+export type ArrElement<ArrType> = ArrType extends readonly (infer ElementType)[]
+  ? ElementType
+  : never;

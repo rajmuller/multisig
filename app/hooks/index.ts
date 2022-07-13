@@ -99,14 +99,22 @@ export const useProgram = () => {
   return program;
 };
 
-export const useFetchMultisigWallets = () => {
+export const useFetchMultisigWallets = (filter?: string) => {
   const program = useProgram();
-  const [wallets, setWallets] = useState<any[]>();
+  const fetchWalletState = program!.account.multisigWalletState.all;
+  type FetchWalletState = Awaited<ReturnType<typeof fetchWalletState>>;
+
+  const [wallets, setWallets] = useState<FetchWalletState>();
 
   const fetchWallets = useCallback(async () => {
     const _wallets = await program?.account.multisigWalletState.all();
-    setWallets(_wallets);
-  }, [program?.account.multisigWalletState]);
+    if (filter) {
+      _wallets?.filter((wallet) => wallet.publicKey.toString() == filter);
+      setWallets(_wallets);
+    } else {
+      setWallets(_wallets);
+    }
+  }, [filter, program?.account.multisigWalletState]);
 
   useEffect(() => {
     if (!wallets) {
@@ -119,7 +127,12 @@ export const useFetchMultisigWallets = () => {
 
 export const useFetchTransactions = () => {
   const program = useProgram();
-  const [transactions, setTransactions] = useState<any[]>();
+  const fetchTransactionState = program!.account.transactionState.all;
+  type FetchTransactionState = Awaited<
+    ReturnType<typeof fetchTransactionState>
+  >;
+
+  const [transactions, setTransactions] = useState<FetchTransactionState>();
 
   const fetchTransactions = useCallback(async () => {
     const _transactions = await program?.account.transactionState.all();
