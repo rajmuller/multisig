@@ -1,5 +1,4 @@
 import { ReactNode, useCallback } from "react";
-import { useMoralis } from "react-moralis";
 
 type LayoutProps = {
   children?: ReactNode;
@@ -17,7 +16,7 @@ const Header = () => {
   console.log({ isAuthenticated });
 
   return (
-    <nav
+    <header
       className={`flex w-full items-center justify-between border-b border-b-violet-900 px-8`}
       style={{
         height: HEADER_HEIGHT,
@@ -32,7 +31,7 @@ const Header = () => {
           {isAuthenticated ? "Log out" : "Sign in with Phantom"}
         </button>
       </div>
-    </nav>
+    </header>
   );
 };
 
