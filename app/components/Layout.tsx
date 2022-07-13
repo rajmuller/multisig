@@ -1,7 +1,7 @@
 import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 import Image from "next/image";
 import Link from "next/link";
-import { ReactNode, useCallback } from "react";
+import { ReactNode } from "react";
 
 type LayoutProps = {
   children?: ReactNode;
