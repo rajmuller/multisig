@@ -5,6 +5,8 @@ type LayoutProps = {
   children?: ReactNode;
 };
 
+const HEADER_HEIGHT = "72px";
+
 const Header = () => {
   const { isAuthenticated, authenticate, logout } = useMoralis();
 
@@ -15,7 +17,12 @@ const Header = () => {
   console.log({ isAuthenticated });
 
   return (
-    <nav className="flex h-16 w-full items-center justify-between px-8">
+    <nav
+      className={`flex w-full items-center justify-between border-b border-b-violet-900 px-8`}
+      style={{
+        height: HEADER_HEIGHT,
+      }}
+    >
       <div>LOGO</div>
       <div>
         <button
@@ -33,7 +40,13 @@ const Layout = ({ children }: LayoutProps) => {
   return (
     <div className="h-screen w-screen bg-gradient-to-br from-[#21103a] to-[#0b0318] text-white">
       <Header />
-      {children}
+      <main
+        style={{
+          height: `calc(100vh - ${HEADER_HEIGHT}`,
+        }}
+      >
+        {children}
+      </main>
     </div>
   );
 };
