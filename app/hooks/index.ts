@@ -101,7 +101,7 @@ export const useProgram = () => {
 
 export const useFetchMultisigWallets = () => {
   const program = useProgram();
-  const [wallets, setWallets] = useState<unknown>();
+  const [wallets, setWallets] = useState<any[]>();
 
   const fetchWallets = useCallback(async () => {
     const _wallets = await program?.account.multisigWalletState.all();
@@ -119,7 +119,7 @@ export const useFetchMultisigWallets = () => {
 
 export const useFetchTransactions = () => {
   const program = useProgram();
-  const [transactions, setTransactions] = useState<unknown>();
+  const [transactions, setTransactions] = useState<any[]>();
 
   const fetchTransactions = useCallback(async () => {
     const _transactions = await program?.account.transactionState.all();

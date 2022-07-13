@@ -31,11 +31,6 @@ const Header = () => {
                 <a className="p-4">Wallets</a>
               </Link>
             </li>
-            <li className="hover:text-violet-300 active:text-violet-500">
-              <Link href="/transactions">
-                <a className="p-4">Transactions</a>
-              </Link>
-            </li>
             <li className="p-4 pr-0">
               <WalletMultiButton />
             </li>

@@ -1,4 +1,4 @@
-import { useFetchMultisigWallets, useInitMultisigWallet } from "hooks";
+import { useInitMultisigWallet } from "hooks";
 import type { NextPage } from "next";
 import { useState } from "react";
 
@@ -8,19 +8,16 @@ const Home: NextPage = () => {
   const [ownerC, setOwnerC] = useState<string>("");
   const [threshold, setThreshold] = useState<string>("");
 
-  const wallets = useFetchMultisigWallets();
-  const { onInitMultisigWallet, receipt } = useInitMultisigWallet(
+  const { onInitMultisigWallet } = useInitMultisigWallet(
     ownerA,
     ownerB,
     ownerC,
     threshold
   );
-  console.log({ wallets });
-  console.log({ receipt });
 
   return (
-    <div className="px flex h-full w-full flex-col items-center justify-center gap-8 px-8">
-      <p className="mb-12 text-7xl">Multisig Wallet</p>
+    <div className="px flex h-full w-full flex-col items-center gap-8 px-8">
+      <p className="my-20 text-7xl">Create Multisig Wallet</p>
       <div className="flex flex-col gap-4">
         <div className="mb-6 flex flex-col items-start">
           <label
