@@ -1,3 +1,5 @@
+import * as anchor from "@project-serum/anchor";
+
 export type Multisig = {
   version: "0.1.0";
   name: "multisig";
@@ -464,4 +466,14 @@ export const IDL: Multisig = {
       msg: "Not enough balance on the multisig wallet.",
     },
   ],
+};
+
+export type PDA = {
+  multisigIdx: anchor.BN;
+  multisigWalletPubKey: anchor.web3.PublicKey;
+  multisigBump: number;
+
+  transactionIdx: anchor.BN;
+  transactionPubKey: anchor.web3.PublicKey;
+  transactionBump: number;
 };
