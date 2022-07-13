@@ -11,4 +11,3 @@
 - rewrite the rpc hooks with react query
 - make it possible to adjust amounts of owners and threshold
 - notification on contract transactions
-- connection.get{account} type definition overhaul
