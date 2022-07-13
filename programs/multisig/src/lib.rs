@@ -86,8 +86,20 @@ pub mod multisig {
         // Has this been executed already?
         require!(
             !ctx.accounts.transaction_account.did_execute,
-            MultiSigError::InvalidOwnersLen
+            MultiSigError::AlreadyExecuted
         );
+
+        let balance = ctx
+            .accounts
+            .multisig_wallet_account
+            .to_account_info()
+            .lamports
+            .borrow_mut()
+            .clone();
+
+        let amount = ctx.accounts.transaction_account.amount;
+
+        require!(balance >= amount, MultiSigError::NotEnoughBalance);
 
         // Do we have enough signers.
         let sig_count = ctx
@@ -265,21 +277,15 @@ pub enum MultiSigError {
     #[msg("Not enough owners signed this transaction.")]
     NotEnoughSigners,
 
-    #[msg("Cannot delete a transaction that has been signed by an owner.")]
-    TransactionAlreadySigned,
-
-    #[msg("Overflow when adding.")]
-    Overflow,
-
-    #[msg("Cannot delete a transaction the owner did not create.")]
-    UnableToDelete,
-
     #[msg("The given transaction has already been executed.")]
     AlreadyExecuted,
 
     #[msg("Threshold must be less than or equal to the number of owners.")]
     InvalidThreshold,
 
-    #[msg("Owners must be unique")]
+    #[msg("Owners must be unique.")]
     UniqueOwners,
+
+    #[msg("Not enough balance on the multisig wallet.")]
+    NotEnoughBalance,
 }

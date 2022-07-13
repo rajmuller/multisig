@@ -165,11 +165,11 @@ describe("multisig", () => {
         })
         .signers([ownerAKeypair])
         .rpc();
-    } catch (error) {
-      const invalidThresholdError = MultiSigError[7];
-      expect(error.error.errorMessage).to.equal(invalidThresholdError.msg);
-      expect(error.error.errorCode.code).to.equal(invalidThresholdError.name);
-      expect(error.error.errorCode.number).to.equal(invalidThresholdError.code);
+    } catch ({ error }) {
+      const invalidThresholdError = MultiSigError[4];
+      expect(error.errorMessage).to.equal(invalidThresholdError.msg);
+      expect(error.errorCode.code).to.equal(invalidThresholdError.name);
+      expect(error.errorCode.number).to.equal(invalidThresholdError.code);
     }
   });
 
@@ -210,13 +210,15 @@ describe("multisig", () => {
       pda.multisigWalletPubKey
     );
     expect(transactionState.proposalId.toNumber()).to.eql(0);
-    expect(transactionState.approvers).to.eql([true, false, false]);
+    expect(transactionState.approvers.toString()).to.eql(
+      [true, false, false].toString()
+    );
     expect(transactionState.didExecute).to.eql(false);
     expect(transactionState.to.toString()).to.eql(receiverPubKey.toString());
     expect(transactionState.amount.toString()).to.eql(amount.toString());
   });
 
-  it("It should approve transaction", async () => {
+  it("It should approve transaction!", async () => {
     await program.methods
       .initializeNewMultisigWallet(pda.multisigIdx, owners, threshold)
       .accounts({
@@ -229,8 +231,6 @@ describe("multisig", () => {
       .rpc();
 
     const { multiSigState: previousMultiSigState } = await readMultisigState();
-
-    const proposalCount = previousMultiSigState.proposalCounter;
 
     // propose transaction
     await program.methods
@@ -261,7 +261,7 @@ describe("multisig", () => {
     );
   });
 
-  it("It should execute a transaction!", async () => {
+  it("It should execute the transaction and decrease/increase sender/receiver's balance!", async () => {
     await program.methods
       .initializeNewMultisigWallet(pda.multisigIdx, owners, threshold)
       .accounts({
@@ -272,10 +272,6 @@ describe("multisig", () => {
       })
       .signers([ownerAKeypair])
       .rpc();
-
-    const { multiSigState: previousMultiSigState } = await readMultisigState();
-
-    const proposalCount = previousMultiSigState.proposalCounter;
 
     // propose transaction
     await program.methods
@@ -290,7 +286,7 @@ describe("multisig", () => {
       .signers([ownerAKeypair])
       .rpc();
 
-    const approveTx = await program.methods
+    await program.methods
       .approveTransaction()
       .accounts({
         transactionAccount: pda.transactionPubKey,
@@ -333,5 +329,70 @@ describe("multisig", () => {
     expect(previousMultisigBalance - amount.toNumber()).to.equal(
       multisigBalance
     );
+  });
+
+  it("It should reject  a transaction which is over the multisig wallet's ballance!", async () => {
+    await program.methods
+      .initializeNewMultisigWallet(pda.multisigIdx, owners, threshold)
+      .accounts({
+        multisigWalletAccount: pda.multisigWalletPubKey,
+        payer: ownerAKeypair.publicKey,
+        systemProgram: anchor.web3.SystemProgram.programId,
+        rent: anchor.web3.SYSVAR_RENT_PUBKEY,
+      })
+      .signers([ownerAKeypair])
+      .rpc();
+
+    const amountUristenVeryBig = new anchor.BN(15 * LAMPORTS_PER_SOL);
+
+    // propose transaction
+    await program.methods
+      .proposeTransaction(receiverPubKey, amountUristenVeryBig)
+      .accounts({
+        transactionAccount: pda.transactionPubKey,
+        multisigWalletAccount: pda.multisigWalletPubKey,
+        proposer: ownerAKeypair.publicKey,
+        systemProgram: anchor.web3.SystemProgram.programId,
+        rent: anchor.web3.SYSVAR_RENT_PUBKEY,
+      })
+      .signers([ownerAKeypair])
+      .rpc();
+
+    await program.methods
+      .approveTransaction()
+      .accounts({
+        transactionAccount: pda.transactionPubKey,
+        multisigWalletAccount: pda.multisigWalletPubKey,
+        approver: ownerBKeypair.publicKey,
+      })
+      .signers([ownerBKeypair])
+      .rpc();
+
+    await fundAccount(pda.multisigWalletPubKey);
+
+    const {
+      transactionState: { to: recipientPubKey },
+    } = await readTransactionState();
+
+    const previousMultisigBalance = await provider.connection.getBalance(
+      pda.multisigWalletPubKey
+    );
+
+    try {
+      await program.methods
+        .executeTransaction()
+        .accounts({
+          multisigWalletAccount: pda.multisigWalletPubKey,
+          transactionAccount: pda.transactionPubKey,
+          recipient: recipientPubKey,
+          systemProgram: anchor.web3.SystemProgram.programId,
+        })
+        .rpc();
+    } catch ({ error }) {
+      const notEnoughBalanceError = MultiSigError[6];
+      expect(error.errorMessage).to.equal(notEnoughBalanceError.msg);
+      expect(error.errorCode.code).to.equal(notEnoughBalanceError.name);
+      expect(error.errorCode.number).to.equal(notEnoughBalanceError.code);
+    }
   });
 });
