@@ -14,10 +14,14 @@ import {
 } from "@solana-mobile/wallet-adapter-mobile";
 import type { AppProps } from "next/app";
 import { useMemo } from "react";
+import { QueryClient, QueryClientProvider } from "react-query";
+import { ReactQueryDevtools } from "react-query/devtools";
 
 import { Layout } from "@/components";
 
 require("@solana/wallet-adapter-react-ui/styles.css");
+
+const queryClient = new QueryClient();
 
 function MyApp({ Component, pageProps }: AppProps) {
   const endpoint = useMemo(
@@ -36,15 +40,18 @@ function MyApp({ Component, pageProps }: AppProps) {
   );
 
   return (
-    <ConnectionProvider endpoint={endpoint}>
-      <WalletProvider wallets={wallets} autoConnect>
-        <WalletModalProvider>
-          <Layout>
-            <Component {...pageProps} />
-          </Layout>
-        </WalletModalProvider>
-      </WalletProvider>
-    </ConnectionProvider>
+    <QueryClientProvider client={queryClient}>
+      <ConnectionProvider endpoint={endpoint}>
+        <WalletProvider wallets={wallets} autoConnect>
+          <WalletModalProvider>
+            <Layout>
+              <Component {...pageProps} />
+            </Layout>
+          </WalletModalProvider>
+        </WalletProvider>
+      </ConnectionProvider>
+      <ReactQueryDevtools initialIsOpen={false} />
+    </QueryClientProvider>
   );
 }
 

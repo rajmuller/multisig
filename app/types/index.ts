@@ -1,5 +1,3 @@
-import * as anchor from "@project-serum/anchor";
-
 export type Multisig = {
   version: "0.1.0";
   name: "multisig";
@@ -466,12 +464,6 @@ export const IDL: Multisig = {
       msg: "Not enough balance on the multisig wallet.",
     },
   ],
-};
-
-export type PDA = {
-  Idx: anchor.BN;
-  pubKey: anchor.web3.PublicKey;
-  bump: number;
 };
 
 export type ArrElement<ArrType> = ArrType extends readonly (infer ElementType)[]

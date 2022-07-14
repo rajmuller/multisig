@@ -3,7 +3,7 @@ import {
   useApproveTransaction,
   useBalance,
   useExecuteTransaction,
-  useFetchMultisigWallets,
+  useMultisigWallets,
   useFetchTransactions,
   useProposeTransaction,
 } from "hooks";
@@ -192,7 +192,7 @@ const Transactions = ({ threshold }: { threshold?: string }) => {
 
 const Wallet: NextPage = () => {
   const { query } = useRouter();
-  const wallet: any | undefined = useFetchMultisigWallets(
+  const wallet: any | undefined = useMultisigWallets(
     query?.slug as string | undefined
   );
 

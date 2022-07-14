@@ -12,9 +12,15 @@ import {
 import { useAnchorWallet, useConnection } from "@solana/wallet-adapter-react";
 import { LAMPORTS_PER_SOL } from "@solana/web3.js";
 import { useCallback, useEffect, useState } from "react";
-import { Multisig, PDA } from "types";
-import idl from "types/multisig.json";
-import { z } from "zod";
+import { useQuery } from "react-query";
+import { ArrElement, Multisig } from "types";
+import idl from "types/idl.json";
+
+export type PDA = {
+  Idx: BN;
+  pubKey: web3.PublicKey;
+  bump: number;
+};
 
 const programId = new web3.PublicKey(
   "8XHSyugWk2uYagCREiD2fSRkgGcTPYvwipXgd9c7em2i"
@@ -106,56 +112,40 @@ export const useProgram = () => {
   return program;
 };
 
-export const useFetchMultisigWallets = (filter?: string) => {
+export const useMultisigWallet = (pubKeyString: string) => {
   const program = useProgram();
 
-  const [wallets, setWallets] =
-    useState<ProgramAccount<TypeDef<any, IdlTypes<Multisig>>>>();
-
-  const fetchWallets = useCallback(async () => {
-    const _wallets = await program?.account.multisigWalletState.all();
-    // _wallets[0].account.
-    if (filter) {
-      const wallet = _wallets?.find(
-        (wallet) => wallet.publicKey.toString() == filter
+  return useQuery(
+    ["multisigWallet"],
+    async () => {
+      const data = await program!.account.multisigWalletState.fetch(
+        new web3.PublicKey(pubKeyString)
       );
-      setWallets(wallet as any);
-    } else {
-      setWallets(_wallets as any);
+      return data;
+    },
+    {
+      enabled: !!program,
     }
-  }, [filter, program?.account.multisigWalletState]);
-
-  useEffect(() => {
-    if (wallets) {
-      return;
-    }
-
-    fetchWallets();
-  }, [fetchWallets, wallets]);
-
-  return wallets;
+  );
 };
 
-export const useFetchTransactions = () => {
+export const useMultisigWallets = () => {
   const program = useProgram();
 
-  const [transactions, setTransactions] = useState();
-
-  const fetchTransactions = useCallback(async () => {
-    const _transactions = await program?.account.transactionState.all();
-    setTransactions(_transactions);
-  }, [program?.account.transactionState]);
-
-  useEffect(() => {
-    if (transactions) {
-      return;
+  return useQuery(
+    ["multisigWallets"],
+    async () => {
+      const data = await program!.account.multisigWalletState.all();
+      return data;
+    },
+    {
+      enabled: !!program,
     }
-
-    fetchTransactions();
-  }, [fetchTransactions, transactions]);
-
-  return transactions;
+  );
 };
+
+type MultisigWalletListType = ReturnType<typeof useMultisigWallets>["data"];
+export type MultisigWalletType = ArrElement<MultisigWalletListType>;
 
 export const useInitMultisigWallet = (
   ownerA?: string,
