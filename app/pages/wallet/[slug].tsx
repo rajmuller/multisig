@@ -43,7 +43,6 @@ const Transaction = ({
   const canExecute =
     threshold && approverCount >= parseInt(threshold) && !didExecute;
 
-  console.log("amount:", amount.toString());
   return (
     <div className="flex flex-col gap-6 overflow-hidden rounded p-4 text-start shadow-lg shadow-violet-700 hover:cursor-pointer hover:shadow-xl hover:shadow-violet-700">
       <div className="w-full overflow-hidden truncate text-xl">
@@ -226,7 +225,7 @@ const Wallet: NextPage = () => {
               className="w-full overflow-hidden truncate text-lg"
               key={owner.toString()}
             >
-              <p>Owner {i}:</p>
+              <p>Owner {i + 1}:</p>
               <p className="truncate text-sm text-violet-200">
                 {owner?.toString()}
               </p>

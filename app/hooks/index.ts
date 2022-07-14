@@ -2,7 +2,7 @@ import { AnchorProvider, BN, Program, web3 } from "@project-serum/anchor";
 import { useAnchorWallet, useConnection } from "@solana/wallet-adapter-react";
 import { LAMPORTS_PER_SOL } from "@solana/web3.js";
 import { useCallback, useState } from "react";
-import { useMutation, useQuery } from "react-query";
+import { useMutation, useQuery, useQueryClient } from "react-query";
 import { Multisig } from "types";
 import idl from "types/idl.json";
 
@@ -167,30 +167,36 @@ export const useInitializeMultisigWallet = (
 ) => {
   const program = useProgram();
   const multisigPDA = useMultisigPDA();
+  const queryClient = useQueryClient();
 
-  const mutation = useMutation(() => {
-    const ownerAPubKey = new web3.PublicKey(ownerA!);
-    const ownerBPubKey = new web3.PublicKey(ownerB!);
-    const ownerCPubKey = new web3.PublicKey(ownerC!);
-    const thresholdBn = new BN(threshold!);
+  const mutation = useMutation(
+    () => {
+      const ownerAPubKey = new web3.PublicKey(ownerA!);
+      const ownerBPubKey = new web3.PublicKey(ownerB!);
+      const ownerCPubKey = new web3.PublicKey(ownerC!);
+      const thresholdBn = new BN(threshold!);
 
-    console.log({ ownerA });
-    console.log(multisigPDA?.pubKey.toString());
-
-    return program!.methods
-      .initializeNewMultisigWallet(
-        multisigPDA!.Idx,
-        [ownerAPubKey, ownerBPubKey, ownerCPubKey],
-        thresholdBn
-      )
-      .accounts({
-        multisigWalletAccount: multisigPDA!.pubKey,
-        payer: program!.provider.publicKey,
-        systemProgram: web3.SystemProgram.programId,
-        rent: web3.SYSVAR_RENT_PUBKEY,
-      })
-      .rpc();
-  });
+      return program!.methods
+        .initializeNewMultisigWallet(
+          multisigPDA!.Idx,
+          [ownerAPubKey, ownerBPubKey, ownerCPubKey],
+          thresholdBn
+        )
+        .accounts({
+          multisigWalletAccount: multisigPDA!.pubKey,
+          payer: program!.provider.publicKey,
+          systemProgram: web3.SystemProgram.programId,
+          rent: web3.SYSVAR_RENT_PUBKEY,
+        })
+        .rpc();
+    },
+    {
+      onSuccess: () => {
+        queryClient.invalidateQueries("transactions");
+        queryClient.invalidateQueries("multisigWallets");
+      },
+    }
+  );
 
   const onInitMultisigWallet = useCallback(() => {
     if (
@@ -217,51 +223,57 @@ export const useProposeTransaction = (
   multisigWalletKeyString?: string,
   proposalCount?: string
 ) => {
-  const [receipt, setReceipt] = useState<web3.TransactionResponse | null>();
   const program = useProgram();
+  const queryClient = useQueryClient();
 
-  const onProposeTransaction = useCallback(async () => {
+  const mutation = useMutation(
+    async () => {
+      const multisigWalletPubKey = new web3.PublicKey(multisigWalletKeyString!);
+      const proposalCountBn = new BN(proposalCount!);
+      const transactionPDA = await getTransactionPDA(
+        multisigWalletPubKey,
+        proposalCountBn
+      );
+      const recipientPubKey = new web3.PublicKey(to!);
+      const amountInSol = new BN(parseFloat(amount!) * LAMPORTS_PER_SOL);
+
+      return program!.methods
+        .proposeTransaction(recipientPubKey, amountInSol)
+        .accounts({
+          multisigWalletAccount: multisigWalletPubKey,
+          transactionAccount: transactionPDA.pubKey,
+          proposer: program!.provider.publicKey,
+          systemProgram: web3.SystemProgram.programId,
+          rent: web3.SYSVAR_RENT_PUBKEY,
+        })
+        .rpc();
+    },
+    {
+      onSuccess: () => {
+        queryClient.invalidateQueries("transactions");
+        queryClient.invalidateQueries("multisigWallets");
+      },
+    }
+  );
+
+  const onProposeTransaction = useCallback(() => {
     if (
       !program ||
-      !to ||
-      !amount ||
       !multisigWalletKeyString ||
-      !proposalCount
+      !proposalCount ||
+      !to ||
+      !amount
     ) {
+      console.error("onProposeTransaction missing prop!");
       return;
     }
 
-    const multisigWalletPubKey = new web3.PublicKey(multisigWalletKeyString);
-    const proposalCountBn = new BN(proposalCount);
-
-    const transactionPDA = await getTransactionPDA(
-      multisigWalletPubKey,
-      proposalCountBn
-    );
-
-    const recipientPubKey = new web3.PublicKey(to);
-    const amountInSol = new BN(parseFloat(amount) * LAMPORTS_PER_SOL);
-
-    const tx = await program.methods
-      .proposeTransaction(recipientPubKey, amountInSol)
-      .accounts({
-        multisigWalletAccount: multisigWalletPubKey,
-        transactionAccount: transactionPDA.pubKey,
-        proposer: program.provider.publicKey,
-        systemProgram: web3.SystemProgram.programId,
-        rent: web3.SYSVAR_RENT_PUBKEY,
-      })
-      .rpc();
-
-    const receipt = await program.provider.connection.getTransaction(tx, {
-      commitment: "confirmed",
-    });
-    setReceipt(receipt);
-  }, [amount, multisigWalletKeyString, program, proposalCount, to]);
+    mutation.mutate();
+  }, [amount, multisigWalletKeyString, mutation, program, proposalCount, to]);
 
   return {
     onProposeTransaction,
-    receipt,
+    status: mutation.status,
   };
 };
 
@@ -269,35 +281,42 @@ export const useApproveTransaction = (
   multisigWalletKeyString: string | undefined,
   proposalKeyString: string | undefined
 ) => {
-  const [receipt, setReceipt] = useState<web3.TransactionResponse | null>();
   const program = useProgram();
+  const queryClient = useQueryClient();
 
-  const onApproveTransaction = useCallback(async () => {
+  const mutation = useMutation(
+    () => {
+      const multisigWalletPubKey = new web3.PublicKey(multisigWalletKeyString!);
+      const transactionPubKey = new web3.PublicKey(proposalKeyString!);
+      return program!.methods
+        .approveTransaction()
+        .accounts({
+          multisigWalletAccount: multisigWalletPubKey,
+          transactionAccount: transactionPubKey,
+          approver: program!.provider.publicKey,
+        })
+        .rpc();
+    },
+    {
+      onSuccess: () => {
+        queryClient.invalidateQueries("transactions");
+        queryClient.invalidateQueries("multisigWallets");
+      },
+    }
+  );
+
+  const onApproveTransaction = useCallback(() => {
     if (!program || !multisigWalletKeyString || !proposalKeyString) {
+      console.error("onApproveTransaction missing prop!");
       return;
     }
 
-    const multisigWalletPubKey = new web3.PublicKey(multisigWalletKeyString);
-    const transactionPubKey = new web3.PublicKey(proposalKeyString);
-
-    const tx = await program.methods
-      .approveTransaction()
-      .accounts({
-        multisigWalletAccount: multisigWalletPubKey,
-        transactionAccount: transactionPubKey,
-        approver: program.provider.publicKey,
-      })
-      .rpc();
-
-    const receipt = await program.provider.connection.getTransaction(tx, {
-      commitment: "confirmed",
-    });
-    setReceipt(receipt);
-  }, [multisigWalletKeyString, program, proposalKeyString]);
+    mutation.mutate();
+  }, [multisigWalletKeyString, mutation, program, proposalKeyString]);
 
   return {
     onApproveTransaction,
-    receipt,
+    status: mutation.status,
   };
 };
 
