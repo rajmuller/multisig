@@ -29,7 +29,7 @@ const Header = () => {
                 <a className="p-4">Wallets</a>
               </Link>
             </li>
-            <li className="p-4 pr-0">
+            <li id="wallet-multi-header-parent" className="p-4 pr-0">
               <WalletMultiButton />
             </li>
           </ul>
@@ -56,7 +56,7 @@ const Layout: FC<PropsWithChildren> = ({ children }) => {
           children
         ) : (
           <div
-            id="wallet-unconencted-parent"
+            id="wallet-multi-body-parent"
             className="absolute top-1/2 left-1/2 flex -translate-y-1/2 -translate-x-1/2 items-center justify-center"
           >
             <WalletMultiButton />

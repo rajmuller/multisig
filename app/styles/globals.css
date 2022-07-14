@@ -6,7 +6,20 @@ body {
   font-family: "Roboto", sans-serif;
 }
 
-#wallet-unconencted-parent button {
- padding: 48px 64px;
- font-size: xx-large;
+#wallet-multi-header-parent button {
+  background-color: #512da8;
+}
+
+#wallet-multi-header-parent button:hover {
+  background-color: #1a1f2e;
+}
+
+#wallet-multi-body-parent button {
+  padding: 48px 64px;
+  font-size: xx-large;
+  background-color: #512da8;
+}
+
+#wallet-multi-body-parent button:hover {
+  background-color: #1a1f2e;
 }
