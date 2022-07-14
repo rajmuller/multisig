@@ -1,10 +1,9 @@
 use anchor_lang::prelude::*;
 use anchor_lang::solana_program::system_program;
 
-// linux
-declare_id!("8XHSyugWk2uYagCREiD2fSRkgGcTPYvwipXgd9c7em2i");
-// //mac
-// declare_id!("Fdjkm4r6FHzt3XmwrD26aLYPG74eJuxnmRby6zxNYfiQ");
+// v1
+// declare_id!("8XHSyugWk2uYagCREiD2fSRkgGcTPYvwipXgd9c7em2i");
+declare_id!("13sFxyR2ZLYWMN9xQJNo8C7JXiXXqfocgrnz3sVHttV3");
 
 #[program]
 pub mod multisig {

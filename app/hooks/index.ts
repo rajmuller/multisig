@@ -1,20 +1,14 @@
-import {
-  AnchorProvider,
-  BN,
-  Program,
-  ProgramAccount,
-  web3,
-} from "@project-serum/anchor";
-import {
-  IdlTypes,
-  TypeDef,
-} from "@project-serum/anchor/dist/cjs/program/namespace/types";
+import { AnchorProvider, BN, Program, web3 } from "@project-serum/anchor";
 import { useAnchorWallet, useConnection } from "@solana/wallet-adapter-react";
 import { LAMPORTS_PER_SOL } from "@solana/web3.js";
-import { useCallback, useEffect, useState } from "react";
-import { useQuery } from "react-query";
-import { ArrElement, Multisig } from "types";
+import { useCallback, useState } from "react";
+import { useMutation, useQuery } from "react-query";
+import { Multisig } from "types";
 import idl from "types/idl.json";
+
+export type ArrElement<ArrType> = ArrType extends readonly (infer ElementType)[]
+  ? ElementType
+  : never;
 
 export type PDA = {
   Idx: BN;
@@ -23,28 +17,33 @@ export type PDA = {
 };
 
 const programId = new web3.PublicKey(
-  "8XHSyugWk2uYagCREiD2fSRkgGcTPYvwipXgd9c7em2i"
+  "13sFxyR2ZLYWMN9xQJNo8C7JXiXXqfocgrnz3sVHttV3"
 );
 
 const a = JSON.stringify(idl);
 const multiSigIdl = JSON.parse(a);
 
-const getMultisigPDA = async (): Promise<PDA> => {
-  const uid = new BN(parseInt((Date.now() / 1000).toString()));
-  // const uidBuffer = uid.toBuffer("le", 8);
-  // const uidBuffer = Buffer.from(uid, "base64url");
-  const uidBuffer = uid.toArrayLike(Buffer, "le", 8);
-  const [multisigWalletPubKey, multisigBump] =
-    await web3.PublicKey.findProgramAddress(
+const useMultisigPDA = (): PDA | undefined => {
+  const { data } = useQuery(["pda", "multisig"], async () => {
+    const uid = new BN(parseInt((Date.now() / 1000).toString()));
+    const uidBuffer = uid.toArrayLike(Buffer, "le", 8);
+    const data = await web3.PublicKey.findProgramAddress(
       [Buffer.from("multisig"), uidBuffer],
       programId
     );
 
-  return {
-    Idx: uid,
-    pubKey: multisigWalletPubKey,
-    bump: multisigBump,
-  };
+    return { data, uid };
+  });
+
+  if (!data) {
+    return;
+  }
+  const {
+    data: [pubKey, bump],
+    uid,
+  } = data;
+
+  return { bump, Idx: uid, pubKey };
 };
 
 const getTransactionPDA = async (
@@ -166,45 +165,50 @@ export const useInitializeMultisigWallet = (
   ownerC?: string,
   threshold?: string
 ) => {
-  const [receipt, setReceipt] = useState<web3.TransactionResponse | null>();
   const program = useProgram();
+  const multisigPDA = useMultisigPDA();
 
-  const onInitMultisigWallet = useCallback(async () => {
-    if (!program || !ownerA || !ownerB || !ownerC || !threshold) {
-      return;
-    }
+  const mutation = useMutation(() => {
+    const ownerAPubKey = new web3.PublicKey(ownerA!);
+    const ownerBPubKey = new web3.PublicKey(ownerB!);
+    const ownerCPubKey = new web3.PublicKey(ownerC!);
+    const thresholdBn = new BN(threshold!);
 
-    const multisigPDA = await getMultisigPDA();
+    console.log({ ownerA });
+    console.log(multisigPDA?.pubKey.toString());
 
-    const ownerAPubKey = new web3.PublicKey(ownerA);
-    const ownerBPubKey = new web3.PublicKey(ownerB);
-    const ownerCPubKey = new web3.PublicKey(ownerC);
-    const thresholdBn = new BN(threshold);
-
-    const tx = await program.methods
+    return program!.methods
       .initializeNewMultisigWallet(
-        multisigPDA.Idx,
+        multisigPDA!.Idx,
         [ownerAPubKey, ownerBPubKey, ownerCPubKey],
         thresholdBn
       )
       .accounts({
-        multisigWalletAccount: multisigPDA.pubKey,
-        payer: program.provider.publicKey,
+        multisigWalletAccount: multisigPDA!.pubKey,
+        payer: program!.provider.publicKey,
         systemProgram: web3.SystemProgram.programId,
         rent: web3.SYSVAR_RENT_PUBKEY,
       })
       .rpc();
+  });
 
-    const receipt = await program.provider.connection.getTransaction(tx, {
-      commitment: "confirmed",
-    });
-    setReceipt(receipt);
-  }, [ownerA, ownerB, ownerC, program, threshold]);
+  const onInitMultisigWallet = useCallback(() => {
+    if (
+      !ownerA ||
+      !ownerB ||
+      !ownerC ||
+      !threshold ||
+      !program ||
+      !multisigPDA
+    ) {
+      console.error("onInitMultisigWallet missing prop!");
+      return;
+    }
 
-  return {
-    onInitMultisigWallet,
-    receipt,
-  };
+    mutation.mutate();
+  }, [multisigPDA, mutation, ownerA, ownerB, ownerC, program, threshold]);
+
+  return { onInitMultisigWallet, status: mutation.status };
 };
 
 export const useProposeTransaction = (

@@ -4,12 +4,12 @@ skip-lint = false
 
 [programs.localnet]
 # linux
-multisig = "8XHSyugWk2uYagCREiD2fSRkgGcTPYvwipXgd9c7em2i"
-# mac
-# multisig = "Fdjkm4r6FHzt3XmwrD26aLYPG74eJuxnmRby6zxNYfiQ"
+multisig = "13sFxyR2ZLYWMN9xQJNo8C7JXiXXqfocgrnz3sVHttV3"
 
 [programs.devnet]
-multisig = "8XHSyugWk2uYagCREiD2fSRkgGcTPYvwipXgd9c7em2i"
+# v1
+# multisig = "8XHSyugWk2uYagCREiD2fSRkgGcTPYvwipXgd9c7em2i"
+multisig = "13sFxyR2ZLYWMN9xQJNo8C7JXiXXqfocgrnz3sVHttV3"
 
 [registry]
 url = "https://api.apr.dev"
