@@ -1,46 +1,55 @@
 import { LAMPORTS_PER_SOL } from "@solana/web3.js";
 import {
+  TransactionType,
   useApproveTransaction,
   useBalance,
   useExecuteTransaction,
-  useMultisigWallets,
-  useFetchTransactions,
+  useMultisigWallet,
   useProposeTransaction,
+  useTransactions,
 } from "hooks";
 import type { NextPage } from "next";
 import { useRouter } from "next/router";
 import { useState } from "react";
 
 type TransactionProps = {
-  transaction: any;
+  transaction: TransactionType;
   threshold?: string;
 };
 
-const Transaction = ({ transaction, threshold }: TransactionProps) => {
-  const approverCount = transaction?.account?.approvers?.filter(
+const Transaction = ({
+  transaction: {
+    publicKey,
+    account: { amount, approvers, didExecute, to },
+  },
+  threshold,
+}: TransactionProps) => {
+  const approverCount = approvers.filter(
     (approver: boolean) => approver
   ).length;
   const { query } = useRouter();
+  const slug = query.slug as string | undefined;
 
   const { onApproveTransaction } = useApproveTransaction(
-    query?.slug as string,
-    transaction?.publicKey?.toString()
+    slug,
+    publicKey.toString()
   );
   const { onExecuteTransaction } = useExecuteTransaction(
-    query?.slug as string,
-    transaction?.publicKey?.toString(),
-    transaction?.account?.to?.toString()
+    slug,
+    publicKey.toString(),
+    to.toString()
   );
 
-  const canExecute = threshold && approverCount >= threshold;
+  const canExecute =
+    threshold && approverCount >= parseInt(threshold) && !didExecute;
 
-  console.log("amount:", transaction?.account?.amount?.toString());
+  console.log("amount:", amount.toString());
   return (
     <div className="flex flex-col gap-6 overflow-hidden rounded p-4 text-start shadow-lg shadow-violet-700 hover:cursor-pointer hover:shadow-xl hover:shadow-violet-700">
       <div className="w-full overflow-hidden truncate text-xl">
         <p>transaction pubkey: </p>
         <p className="w-full overflow-hidden truncate text-sm text-violet-200">
-          {transaction?.publicKey?.toString()}
+          {publicKey.toString()}
         </p>
       </div>
       <div>
@@ -56,34 +65,32 @@ const Transaction = ({ transaction, threshold }: TransactionProps) => {
       <div>
         <p className="text-lg">Did Execute: </p>
         <p className="truncate text-xl text-violet-200">
-          {transaction?.account?.didExecute ? "Yes" : "No"}
+          {didExecute ? "Yes" : "No"}
         </p>
       </div>
       <div>
         <p className="text-lg">Recipient: </p>
-        <p className="truncate text-sm text-violet-200">
-          {transaction?.account?.to?.toString()}
-        </p>
+        <p className="truncate text-sm text-violet-200">{to.toString()}</p>
       </div>
       <div>
         <p className="text-lg">Amount: </p>
         <p className="truncate text-sm text-violet-200">
-          {transaction?.account?.amount?.toString() / LAMPORTS_PER_SOL}
+          {amount.toNumber() / LAMPORTS_PER_SOL}
         </p>
       </div>
-      {transaction?.account?.approvers?.map((approver: any, i: any) => (
+      {approvers.map((approver: any, i: any) => (
         <div className="w-full overflow-hidden truncate text-lg" key={i}>
           <p>Approvers {i + 1}:</p>
           <p className="truncate text-sm text-violet-200">
-            {approver?.toString()}
+            {approver.toString()}
           </p>
         </div>
       ))}
       <button
-        disabled={transaction?.account?.didExecute}
+        disabled={didExecute}
         onClick={canExecute ? onExecuteTransaction : onApproveTransaction}
         className={`rounded ${
-          transaction?.account?.didExecute
+          didExecute
             ? "cursor-not-allowed bg-gray-700"
             : "bg-violet-500 hover:bg-violet-600 active:bg-violet-700"
         } px-3 py-1.5 font-medium`}
@@ -163,12 +170,12 @@ const ProposeTransaction = ({
 };
 
 const Transactions = ({ threshold }: { threshold?: string }) => {
-  const transactions: any[] | undefined = useFetchTransactions();
+  const { data, isLoading } = useTransactions();
 
-  if (!transactions) {
+  if (!data || isLoading) {
     return (
       <div className="px flex h-full w-full flex-col items-center gap-8 px-8">
-        <p className="my-20 text-7xl">Loading transaction</p>
+        <p className="my-20 text-7xl">Loading transactions...</p>
         <span
           className="spinner-border ml-8 inline-block h-8 w-8 animate-spin rounded-full border-4 text-violet-100"
           role="status"
@@ -179,9 +186,9 @@ const Transactions = ({ threshold }: { threshold?: string }) => {
 
   return (
     <div className="grid w-full grid-cols-4 gap-8 pb-16">
-      {transactions?.map((transaction) => (
+      {data.map((transaction) => (
         <Transaction
-          key={transaction?.publicKey?.toString()}
+          key={transaction.publicKey.toString()}
           transaction={transaction}
           threshold={threshold}
         />
@@ -192,13 +199,10 @@ const Transactions = ({ threshold }: { threshold?: string }) => {
 
 const Wallet: NextPage = () => {
   const { query } = useRouter();
-  const wallet: any | undefined = useMultisigWallets(
-    query?.slug as string | undefined
-  );
+  const slug = query.slug as unknown as string | undefined;
 
-  const balance = useBalance(query?.slug as string);
-
-  const walletPubKeyString = wallet?.publicKey?.toString();
+  const { data } = useMultisigWallet(slug);
+  const balance = useBalance(slug);
 
   return (
     <div className="px flex h-full w-full flex-col items-center gap-8 px-8">
@@ -208,17 +212,19 @@ const Wallet: NextPage = () => {
           <div className="w-full overflow-hidden truncate text-xl">
             <p>Wallet pubkey: </p>
             <p className="w-full overflow-hidden truncate text-sm text-violet-200">
-              {walletPubKeyString}
+              {slug}
             </p>
           </div>
           <div>
             <p className="text-lg">Balance: </p>
-            <p className="text-md truncate text-violet-300">{balance} SOL</p>
+            <p className="text-md truncate text-violet-300">
+              {balance ? balance / LAMPORTS_PER_SOL : "..."} SOL
+            </p>
           </div>
-          {wallet?.account?.owners?.map((owner: any, i: any) => (
+          {data?.owners.map((owner, i) => (
             <div
               className="w-full overflow-hidden truncate text-lg"
-              key={owner?.toString()}
+              key={owner.toString()}
             >
               <p>Owner {i}:</p>
               <p className="truncate text-sm text-violet-200">
@@ -229,22 +235,22 @@ const Wallet: NextPage = () => {
           <div>
             <p className="text-lg">Proposal Count: </p>
             <p className="truncate text-sm text-violet-200">
-              {wallet?.account?.proposalCounter?.toString()}
+              {data?.proposalCounter?.toString()}
             </p>
           </div>
           <div>
             <p className="text-lg">Threshold: </p>
             <p className="truncate text-sm text-violet-200">
-              {wallet?.account?.threshold?.toString()}
+              {data?.threshold.toString()}
             </p>
           </div>
         </div>
         <div className="flex flex-col items-end gap-8">
           <ProposeTransaction
-            multisigKeyString={query?.slug as string}
-            proposalCounter={wallet?.account?.proposalCounter?.toString()}
+            multisigKeyString={slug}
+            proposalCounter={data?.proposalCounter.toString()}
           />
-          <Transactions threshold={wallet?.account?.threshold?.toString()} />
+          <Transactions threshold={data?.threshold.toString()} />
         </div>
       </div>
     </div>

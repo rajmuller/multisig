@@ -1,4 +1,4 @@
-import { useInitMultisigWallet } from "hooks";
+import { useInitializeMultisigWallet } from "hooks";
 import type { NextPage } from "next";
 import { useState } from "react";
 
@@ -8,7 +8,7 @@ const Home: NextPage = () => {
   const [ownerC, setOwnerC] = useState<string>("");
   const [threshold, setThreshold] = useState<string>("");
 
-  const { onInitMultisigWallet } = useInitMultisigWallet(
+  const { onInitMultisigWallet } = useInitializeMultisigWallet(
     ownerA,
     ownerB,
     ownerC,

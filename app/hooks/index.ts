@@ -47,28 +47,6 @@ const getMultisigPDA = async (): Promise<PDA> => {
   };
 };
 
-export const useBalance = (keyString?: string) => {
-  const [balance, setBalance] = useState("");
-  const { connection } = useConnection();
-
-  const fetchBalance = useCallback(
-    async (pubKey: web3.PublicKey) => {
-      const _balance = await connection.getBalance(new web3.PublicKey(pubKey!));
-
-      setBalance((_balance / LAMPORTS_PER_SOL).toString());
-    },
-    [connection]
-  );
-
-  useEffect(() => {
-    if (!balance && keyString) {
-      fetchBalance(new web3.PublicKey(keyString));
-    }
-  }, [balance, fetchBalance, keyString]);
-
-  return balance;
-};
-
 const getTransactionPDA = async (
   multisigWalletPubKey: web3.PublicKey,
   proposalCount: BN
@@ -96,7 +74,7 @@ export const useProgram = () => {
   const { connection } = useConnection();
 
   if (!wallet) {
-    return null;
+    return;
   }
 
   const provider = new AnchorProvider(connection, wallet, {
@@ -112,19 +90,36 @@ export const useProgram = () => {
   return program;
 };
 
-export const useMultisigWallet = (pubKeyString: string) => {
+export const useBalance = (keyString: string | undefined) => {
+  const { connection } = useConnection();
+
+  const { data } = useQuery(
+    ["multisigWallets"],
+    async () => {
+      const data = await connection.getBalance(new web3.PublicKey(keyString!));
+      return data;
+    },
+    {
+      enabled: !!keyString,
+    }
+  );
+
+  return data;
+};
+
+export const useMultisigWallet = (pubKeyString: string | undefined) => {
   const program = useProgram();
 
   return useQuery(
     ["multisigWallet"],
     async () => {
       const data = await program!.account.multisigWalletState.fetch(
-        new web3.PublicKey(pubKeyString)
+        new web3.PublicKey(pubKeyString!)
       );
       return data;
     },
     {
-      enabled: !!program,
+      enabled: !!program || !!pubKeyString,
     }
   );
 };
@@ -147,7 +142,25 @@ export const useMultisigWallets = () => {
 type MultisigWalletListType = ReturnType<typeof useMultisigWallets>["data"];
 export type MultisigWalletType = ArrElement<MultisigWalletListType>;
 
-export const useInitMultisigWallet = (
+export const useTransactions = () => {
+  const program = useProgram();
+
+  return useQuery(
+    ["transactions"],
+    async () => {
+      const data = await program?.account.transactionState.all();
+      return data;
+    },
+    {
+      enabled: !!program,
+    }
+  );
+};
+
+type TransactionListType = ReturnType<typeof useTransactions>["data"];
+export type TransactionType = ArrElement<TransactionListType>;
+
+export const useInitializeMultisigWallet = (
   ownerA?: string,
   ownerB?: string,
   ownerC?: string,
