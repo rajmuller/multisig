@@ -1,11 +1,8 @@
+import { useWallet } from "@solana/wallet-adapter-react";
 import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 import Image from "next/image";
 import Link from "next/link";
-import { ReactNode } from "react";
-
-type LayoutProps = {
-  children?: ReactNode;
-};
+import { FC, PropsWithChildren } from "react";
 
 const HEADER_HEIGHT = "72px";
 
@@ -43,17 +40,28 @@ const Header = () => {
   );
 };
 
-const Layout = ({ children }: LayoutProps) => {
+const Layout: FC<PropsWithChildren> = ({ children }) => {
+  const { connected } = useWallet();
+
   return (
     <div className="flex w-screen flex-col items-center bg-gradient-to-br from-[#21103a] to-[#0b0318] text-center text-white">
       <Header />
       <main
-        className="w-full max-w-7xl"
+        className="relative flex w-full max-w-7xl flex-col"
         style={{
           minHeight: `calc(100vh - ${HEADER_HEIGHT})`,
         }}
       >
-        {children}
+        {connected ? (
+          children
+        ) : (
+          <div
+            id="wallet-unconencted-parent"
+            className="absolute top-1/2 left-1/2 flex -translate-y-1/2 -translate-x-1/2 items-center justify-center"
+          >
+            <WalletMultiButton />
+          </div>
+        )}
       </main>
     </div>
   );

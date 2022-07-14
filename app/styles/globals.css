@@ -5,3 +5,8 @@
 body {
   font-family: "Roboto", sans-serif;
 }
+
+#wallet-unconencted-parent button {
+ padding: 48px 64px;
+ font-size: xx-large;
+}

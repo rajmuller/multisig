@@ -1,5 +1,4 @@
 import * as anchor from "@project-serum/anchor";
-import { Program } from "@project-serum/anchor";
 
 export type Multisig = {
   version: "0.1.0";

@@ -1,9 +1,20 @@
-import { AnchorProvider, BN, Program, web3 } from "@project-serum/anchor";
+import {
+  AnchorProvider,
+  BN,
+  Program,
+  ProgramAccount,
+  web3,
+} from "@project-serum/anchor";
+import {
+  IdlTypes,
+  TypeDef,
+} from "@project-serum/anchor/dist/cjs/program/namespace/types";
 import { useAnchorWallet, useConnection } from "@solana/wallet-adapter-react";
 import { LAMPORTS_PER_SOL } from "@solana/web3.js";
 import { useCallback, useEffect, useState } from "react";
 import { Multisig, PDA } from "types";
 import idl from "types/multisig.json";
+import { z } from "zod";
 
 const programId = new web3.PublicKey(
   "8XHSyugWk2uYagCREiD2fSRkgGcTPYvwipXgd9c7em2i"
@@ -98,10 +109,12 @@ export const useProgram = () => {
 export const useFetchMultisigWallets = (filter?: string) => {
   const program = useProgram();
 
-  const [wallets, setWallets] = useState<any[] | any>();
+  const [wallets, setWallets] =
+    useState<ProgramAccount<TypeDef<any, IdlTypes<Multisig>>>>();
 
   const fetchWallets = useCallback(async () => {
     const _wallets = await program?.account.multisigWalletState.all();
+    // _wallets[0].account.
     if (filter) {
       const wallet = _wallets?.find(
         (wallet) => wallet.publicKey.toString() == filter
@@ -126,11 +139,11 @@ export const useFetchMultisigWallets = (filter?: string) => {
 export const useFetchTransactions = () => {
   const program = useProgram();
 
-  const [transactions, setTransactions] = useState<any[]>();
+  const [transactions, setTransactions] = useState();
 
   const fetchTransactions = useCallback(async () => {
     const _transactions = await program?.account.transactionState.all();
-    setTransactions(_transactions as any);
+    setTransactions(_transactions);
   }, [program?.account.transactionState]);
 
   useEffect(() => {
