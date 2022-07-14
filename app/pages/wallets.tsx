@@ -1,32 +1,16 @@
 import { MultisigWalletType, useMultisigWallets } from "hooks";
 import type { NextPage } from "next";
-import { useRouter } from "next/router";
-import { useCallback } from "react";
+import Link from "next/link";
 
 type WalletProps = {
   wallet: MultisigWalletType;
 };
 
 const Wallet = ({ wallet }: WalletProps) => {
-  const router = useRouter();
   const walletPubKeyString = wallet.publicKey.toString();
 
-  const onNavigate = useCallback(() => {
-    if (!walletPubKeyString) {
-      return;
-    }
-
-    router.push({
-      pathname: "/wallet/[pid]",
-      query: { pid: walletPubKeyString },
-    });
-  }, [router, walletPubKeyString]);
-
   return (
-    <div
-      onClick={onNavigate}
-      className="flex flex-col gap-6 overflow-hidden rounded p-4 text-start shadow-lg shadow-violet-700 hover:cursor-pointer hover:shadow-xl hover:shadow-violet-700"
-    >
+    <div className="flex flex-col gap-6 overflow-hidden rounded p-4 text-start shadow-lg shadow-violet-700 hover:cursor-pointer hover:shadow-xl hover:shadow-violet-700">
       <div className="w-full overflow-hidden truncate text-xl">
         <p>Wallet pubkey: </p>
         <p className="w-full overflow-hidden truncate text-sm text-violet-200">
@@ -77,9 +61,23 @@ const Wallets: NextPage = () => {
     <div className="px flex h-full w-full flex-col items-center gap-8 px-8">
       <p className="my-20 text-7xl">Wallets</p>
       <div className="grid w-full grid-cols-4">
-        {data.map((wallet) => (
-          <Wallet key={wallet.publicKey.toString()} wallet={wallet} />
-        ))}
+        {data.map((wallet) => {
+          const walletPubKeyString = wallet.publicKey.toString();
+
+          return (
+            <Link
+              href={{
+                pathname: "/wallet/[slug]",
+                query: { slug: walletPubKeyString },
+              }}
+              key={walletPubKeyString}
+            >
+              <a>
+                <Wallet wallet={wallet} />
+              </a>
+            </Link>
+          );
+        })}
       </div>
     </div>
   );

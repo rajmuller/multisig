@@ -93,7 +93,7 @@ export const useBalance = (keyString: string | undefined) => {
   const { connection } = useConnection();
 
   const { data } = useQuery(
-    ["multisigWallets"],
+    ["balance", keyString],
     async () => {
       const data = await connection.getBalance(new web3.PublicKey(keyString!));
       return data;
